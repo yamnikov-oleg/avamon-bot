@@ -64,15 +64,22 @@ func (s *Status) String() string {
 		errText = "nil"
 	}
 
+	var httpStatusText string
+	if s.HTTPStatusCode != 0 {
+		httpStatusText = fmt.Sprintf("%v %v", s.HTTPStatusCode, http.StatusText(s.HTTPStatusCode))
+	} else {
+		httpStatusText = "nil"
+	}
+
 	template := `Status {
   Type = %v,
   Err = %v,
   Response Time = %v,
-  HTTP Status = %v %v,
+  HTTP Status = %v,
 }`
 	return fmt.Sprintf(
 		template,
-		s.Type, errText, s.ResponseTime, s.HTTPStatusCode, http.StatusText(s.HTTPStatusCode),
+		s.Type, errText, s.ResponseTime, httpStatusText,
 	)
 }
 

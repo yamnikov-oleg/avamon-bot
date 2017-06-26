@@ -12,8 +12,8 @@ import (
 type StatusType uint
 
 const (
-	// StatusSuccess - the service is available.
-	StatusSuccess = iota
+	// StatusOK - the service is available.
+	StatusOK = iota
 	// StatusGenericError - some generic network error.
 	StatusGenericError
 	// StatusTimeout - HTTP request timed out.
@@ -28,8 +28,8 @@ const (
 
 func (st StatusType) String() string {
 	switch st {
-	case StatusSuccess:
-		return "Success"
+	case StatusOK:
+		return "OK"
 	case StatusGenericError:
 		return "Generic Error"
 	case StatusTimeout:
@@ -47,8 +47,8 @@ func (st StatusType) String() string {
 // Status contains information about service availability.
 type Status struct {
 	Type StatusType
-	// The exact error value, if Type is not StatusSuccess.
-	// If Type is StatusSuccess it is nil.
+	// The exact error value, if Type is not StatusOK.
+	// If Type is StatusOK it is nil.
 	Err error
 	// Time spent for the request.
 	ResponseTime time.Duration
@@ -79,7 +79,7 @@ func (s *Status) String() string {
 
 func newSuccessStatus(resp *http.Response, dur time.Duration) *Status {
 	return &Status{
-		Type:           StatusSuccess,
+		Type:           StatusOK,
 		Err:            nil,
 		ResponseTime:   dur,
 		HTTPStatusCode: resp.StatusCode,

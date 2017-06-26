@@ -54,7 +54,6 @@ type Status struct {
 	ResponseTime time.Duration
 	// If HTTP response was not received, it's set to 0.
 	HTTPStatusCode int
-	HTTPStatusText string
 }
 
 func (s *Status) String() string {
@@ -73,7 +72,7 @@ func (s *Status) String() string {
 }`
 	return fmt.Sprintf(
 		template,
-		s.Type, errText, s.ResponseTime, s.HTTPStatusCode, s.HTTPStatusText,
+		s.Type, errText, s.ResponseTime, s.HTTPStatusCode, http.StatusText(s.HTTPStatusCode),
 	)
 }
 
@@ -83,7 +82,6 @@ func newSuccessStatus(resp *http.Response, dur time.Duration) *Status {
 		Err:            nil,
 		ResponseTime:   dur,
 		HTTPStatusCode: resp.StatusCode,
-		HTTPStatusText: http.StatusText(resp.StatusCode),
 	}
 }
 
@@ -93,7 +91,6 @@ func newGenericErrorStatus(err error, dur time.Duration) *Status {
 		Err:            err,
 		ResponseTime:   dur,
 		HTTPStatusCode: 0,
-		HTTPStatusText: "",
 	}
 }
 
@@ -103,7 +100,6 @@ func newTimeoutStatus(err error, dur time.Duration) *Status {
 		Err:            err,
 		ResponseTime:   dur,
 		HTTPStatusCode: 0,
-		HTTPStatusText: "",
 	}
 }
 
@@ -113,7 +109,6 @@ func newURLParsingErrorStatus(err error, dur time.Duration) *Status {
 		Err:            err,
 		ResponseTime:   dur,
 		HTTPStatusCode: 0,
-		HTTPStatusText: "",
 	}
 }
 
@@ -123,7 +118,6 @@ func newDNSLookupErrorStatus(err error, dur time.Duration) *Status {
 		Err:            err,
 		ResponseTime:   dur,
 		HTTPStatusCode: 0,
-		HTTPStatusText: "",
 	}
 }
 
@@ -133,7 +127,6 @@ func newHTTPErrorStatus(resp *http.Response, dur time.Duration) *Status {
 		Err:            fmt.Errorf("Server returned status '%v'", resp.Status),
 		ResponseTime:   dur,
 		HTTPStatusCode: resp.StatusCode,
-		HTTPStatusText: http.StatusText(resp.StatusCode),
 	}
 }
 

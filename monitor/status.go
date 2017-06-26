@@ -8,14 +8,21 @@ import (
 	"time"
 )
 
+// StatusType describes availability status as one enumerable value.
 type StatusType uint
 
 const (
+	// StatusSuccess - the service is available.
 	StatusSuccess = iota
+	// StatusGenericError - some generic network error.
 	StatusGenericError
+	// StatusTimeout - HTTP request timed out.
 	StatusTimeout
+	// StatusURLParsingError - request URL is invalid.
 	StatusURLParsingError
+	// StatusDNSLookupError - could not resolve domain name.
 	StatusDNSLookupError
+	// StatusHTTPError - the service returned non-successfull HTTP status code.
 	StatusHTTPError
 )
 
@@ -37,10 +44,15 @@ func (st StatusType) String() string {
 	return "Unknown"
 }
 
+// Status contains information about service availability.
 type Status struct {
-	Type           StatusType
-	Err            error
-	ResponseTime   time.Duration
+	Type StatusType
+	// The exact error value, if Type is not StatusSuccess.
+	// If Type is StatusSuccess it is nil.
+	Err error
+	// Time spent for the request.
+	ResponseTime time.Duration
+	// If HTTP response was not received, it's set to 0.
 	HTTPStatusCode int
 	HTTPStatusText string
 }

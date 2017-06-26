@@ -5,16 +5,22 @@ import (
 	"time"
 )
 
+// Poller makes HTTP request to some URL to return its availability status.
 type Poller struct {
+	// Timeout of network request.
 	Timeout time.Duration
 }
 
+// NewPoller constructs a new Poller with default fields.
 func NewPoller() *Poller {
 	return &Poller{
 		Timeout: 3 * time.Second,
 	}
 }
 
+// PollService makes HTTP GET request to the URL and returns its availability status.
+// If there was an error during request, the returned Status structure will
+// contain information about the error.
 func (p *Poller) PollService(url string) *Status {
 	client := &http.Client{}
 	client.Timeout = p.Timeout

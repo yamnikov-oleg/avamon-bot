@@ -1,6 +1,7 @@
 package monitor
 
 type Target struct {
+	ID    uint
 	Title string
 	URL   string
 }

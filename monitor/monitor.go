@@ -1,5 +1,7 @@
 package monitor
 
+import "fmt"
+
 // Target is a URL, which has to be polled for availability.
 type Target struct {
 	// Unique identifier of this target. Targets' IDs cannot intercept. Target's
@@ -9,6 +11,10 @@ type Target struct {
 	Title string
 	// The HTTP URL to poll.
 	URL string
+}
+
+func (t Target) String() string {
+	return fmt.Sprintf("Target %v { %q, %q }", t.ID, t.Title, t.URL)
 }
 
 // TargetsGetter is an interface of targets source. Monitor uses it to retrieve

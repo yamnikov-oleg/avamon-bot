@@ -89,8 +89,8 @@ func (s Status) String() string {
 	return fmt.Sprintf("Status { %v, %v }", s.Type, s.ResponseTime)
 }
 
-func newSuccessStatus(resp *http.Response, dur time.Duration) *Status {
-	return &Status{
+func newSuccessStatus(resp *http.Response, dur time.Duration) Status {
+	return Status{
 		Type:           StatusOK,
 		Err:            nil,
 		ResponseTime:   dur,
@@ -98,8 +98,8 @@ func newSuccessStatus(resp *http.Response, dur time.Duration) *Status {
 	}
 }
 
-func newGenericErrorStatus(err error, dur time.Duration) *Status {
-	return &Status{
+func newGenericErrorStatus(err error, dur time.Duration) Status {
+	return Status{
 		Type:           StatusGenericError,
 		Err:            err,
 		ResponseTime:   dur,
@@ -107,8 +107,8 @@ func newGenericErrorStatus(err error, dur time.Duration) *Status {
 	}
 }
 
-func newTimeoutStatus(err error, dur time.Duration) *Status {
-	return &Status{
+func newTimeoutStatus(err error, dur time.Duration) Status {
+	return Status{
 		Type:           StatusTimeout,
 		Err:            err,
 		ResponseTime:   dur,
@@ -116,8 +116,8 @@ func newTimeoutStatus(err error, dur time.Duration) *Status {
 	}
 }
 
-func newURLParsingErrorStatus(err error, dur time.Duration) *Status {
-	return &Status{
+func newURLParsingErrorStatus(err error, dur time.Duration) Status {
+	return Status{
 		Type:           StatusURLParsingError,
 		Err:            err,
 		ResponseTime:   dur,
@@ -125,8 +125,8 @@ func newURLParsingErrorStatus(err error, dur time.Duration) *Status {
 	}
 }
 
-func newDNSLookupErrorStatus(err error, dur time.Duration) *Status {
-	return &Status{
+func newDNSLookupErrorStatus(err error, dur time.Duration) Status {
+	return Status{
 		Type:           StatusDNSLookupError,
 		Err:            err,
 		ResponseTime:   dur,
@@ -134,8 +134,8 @@ func newDNSLookupErrorStatus(err error, dur time.Duration) *Status {
 	}
 }
 
-func newHTTPErrorStatus(resp *http.Response, dur time.Duration) *Status {
-	return &Status{
+func newHTTPErrorStatus(resp *http.Response, dur time.Duration) Status {
+	return Status{
 		Type:           StatusHTTPError,
 		Err:            fmt.Errorf("Server returned status '%v'", resp.Status),
 		ResponseTime:   dur,
@@ -143,7 +143,7 @@ func newHTTPErrorStatus(resp *http.Response, dur time.Duration) *Status {
 	}
 }
 
-func netErrToStatus(err error, dur time.Duration) *Status {
+func netErrToStatus(err error, dur time.Duration) Status {
 	if err, ok := err.(net.Error); ok {
 		if err.Timeout() {
 			return newTimeoutStatus(err, dur)

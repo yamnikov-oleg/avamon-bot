@@ -72,7 +72,7 @@ func (s *Scheduler) PollTargets() {
 	for _, target := range targets {
 		status := s.Poller.PollService(target.URL)
 		if s.Statuses != nil {
-			s.Statuses <- TargetStatus{target, *status}
+			s.Statuses <- TargetStatus{target, status}
 		}
 	}
 }

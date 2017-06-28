@@ -21,7 +21,7 @@ func NewPoller() *Poller {
 // PollService makes HTTP GET request to the URL and returns its availability status.
 // If there was an error during request, the returned Status structure will
 // contain information about the error.
-func (p *Poller) PollService(url string) *Status {
+func (p *Poller) PollService(url string) Status {
 	client := &http.Client{}
 	client.Timeout = p.Timeout
 

@@ -33,3 +33,26 @@ func (ts TargetStatus) String() string {
 type TargetsGetter interface {
 	GetTargets() ([]Target, error)
 }
+
+// TargetsSlice - the most basic implementation on TargetsGetter.
+type TargetsSlice []Target
+
+// GetTargets implements TargetsGetter for TargetsSlice.
+func (ts TargetsSlice) GetTargets() ([]Target, error) {
+	return ts, nil
+}
+
+// NewTargetsSliceFromUrls constructs TargetsSlice from a list of urls.
+// Each target is given an ID equal to the url's index, and the title of format
+// "Target N".
+func NewTargetsSliceFromUrls(urls []string) TargetsSlice {
+	ts := TargetsSlice{}
+	for i, url := range urls {
+		ts = append(ts, Target{
+			ID:    uint(i),
+			Title: fmt.Sprintf("Target %v", i),
+			URL:   url,
+		})
+	}
+	return ts
+}

@@ -56,7 +56,9 @@ type Status struct {
 	HTTPStatusCode int
 }
 
-func (s *Status) String() string {
+// ExpandedString returns a multi-line string, describing contents of the status
+// object.
+func (s Status) ExpandedString() string {
 	var errText string
 	if s.Err != nil {
 		errText = fmt.Sprintf("%T: %q", s.Err, s.Err)
@@ -81,6 +83,10 @@ func (s *Status) String() string {
 		template,
 		s.Type, errText, s.ResponseTime, httpStatusText,
 	)
+}
+
+func (s Status) String() string {
+	return fmt.Sprintf("Status { %v, %v }", s.Type, s.ResponseTime)
 }
 
 func newSuccessStatus(resp *http.Response, dur time.Duration) *Status {

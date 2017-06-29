@@ -45,6 +45,8 @@ func (st StatusType) String() string {
 	return "Unknown"
 }
 
+// ScanStatusType tries to parse StatusType by strictly comparing it to
+// the string representation of each StatusType variant.
 func ScanStatusType(s string) (StatusType, bool) {
 	types := []StatusType{
 		StatusOK, StatusGenericError, StatusTimeout, StatusURLParsingError,
@@ -58,6 +60,10 @@ func ScanStatusType(s string) (StatusType, bool) {
 	return 0, false
 }
 
+// ScanStatusTypeSoft is similar to ScanStatusType, but on comparing it converts
+// both strings to lower case and does not check for strict equiality, but
+// checks if StatusType's string starts with input string.
+// This method is more error-tolerant and is intended to use with user input.
 func ScanStatusTypeSoft(s string) (StatusType, bool) {
 	s = strings.ToLower(s)
 

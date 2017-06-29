@@ -9,11 +9,15 @@ import (
 	"github.com/pkg/errors"
 )
 
+// StatusStore is an interface of storage of availability statuses.
+// Standart implementation of this interface (RedisStore) uses Redis as backend,
+// but some user may reimplement interface to store data in a RDB or in memory.
 type StatusStore interface {
 	GetStatus(t Target) (Status, bool, error)
 	SetStatus(t Target, s Status, exp time.Duration) error
 }
 
+// RedisOptions contains options for connecting to a redis instance.
 type RedisOptions struct {
 	Host     string
 	Port     uint
@@ -39,12 +43,16 @@ func (ro RedisOptions) toPkgOptions() *redis.Options {
 	}
 }
 
+// RedisStore is an implementation of StatusStore, which uses Redis as
+// storage backend.
 type RedisStore struct {
 	client *redis.Client
 }
 
 var _ StatusStore = &RedisStore{}
 
+// NewRedisStore constructs a new RedisStore, which connect to the redis instance,
+// pointed by `opt`.
 func NewRedisStore(opt RedisOptions) *RedisStore {
 	return &RedisStore{
 		client: redis.NewClient(opt.toPkgOptions()),
@@ -116,6 +124,8 @@ func deserializeStatusRedis(s string) (Target, Status, error) {
 	return target, status, nil
 }
 
+// Ping checks redis instance for availability by issuing `PING` command.
+// If redis is available, it returns nil.
 func (rs *RedisStore) Ping() error {
 	err := rs.client.Ping().Err()
 	if err != nil {
@@ -124,6 +134,8 @@ func (rs *RedisStore) Ping() error {
 	return nil
 }
 
+// Scan searches redis db for stored statuses using `SCAN` command and returns
+// a list of all found items.
 func (rs *RedisStore) Scan() ([]TargetStatus, error) {
 	match := fmt.Sprintf(redisKeyTemplate, "*")
 
@@ -159,6 +171,8 @@ func (rs *RedisStore) Scan() ([]TargetStatus, error) {
 	return tarstats, nil
 }
 
+// GetStatus attempts to retrieve target's status from redis. If status
+// is not set, it will return ok=false, err=nil.
 func (rs *RedisStore) GetStatus(t Target) (Status, bool, error) {
 	str, err := rs.client.Get(targetToRedisKey(t)).Result()
 	if err == redis.Nil {
@@ -181,6 +195,7 @@ func (rs *RedisStore) GetStatus(t Target) (Status, bool, error) {
 	return status, true, nil
 }
 
+// SetStatus stores the target's status into redis with given expiration time.
 func (rs *RedisStore) SetStatus(t Target, s Status, exp time.Duration) error {
 	str, err := serializeStatusRedis(t, s)
 	if err != nil {

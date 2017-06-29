@@ -121,6 +121,7 @@ func main() {
 	}
 	fmt.Println("Connected to redis.")
 
+	var lastCmdline []string
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Print("> ")
@@ -135,8 +136,9 @@ func main() {
 
 		cmdline := splitWithQuotes(line)
 		if len(cmdline) == 0 {
-			continue
+			cmdline = lastCmdline
 		}
+		lastCmdline = cmdline
 
 		cmd := cmdline[0]
 		args := cmdline[1:]

@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"sync"
 	"time"
 )
 
@@ -14,6 +15,8 @@ type Scheduler struct {
 	Targets TargetsGetter
 	// Time interval between targets polling.
 	Interval time.Duration
+	// Maximum number of parallel http requests.
+	ParallelPolls uint
 	// The channel into which the scheduler will write the polling results.
 	Statuses chan TargetStatus
 	// The optional channel into which the scheduler should write errors of
@@ -26,11 +29,12 @@ type Scheduler struct {
 // fields values.
 func NewScheduler(targets TargetsGetter) *Scheduler {
 	return &Scheduler{
-		Poller:   NewPoller(),
-		Targets:  targets,
-		Interval: 5 * time.Second,
-		Statuses: make(chan TargetStatus, 1),
-		Errors:   nil,
+		Poller:        NewPoller(),
+		Targets:       targets,
+		Interval:      5 * time.Second,
+		ParallelPolls: 5,
+		Statuses:      make(chan TargetStatus, 1),
+		Errors:        nil,
 	}
 }
 
@@ -69,10 +73,25 @@ func (s *Scheduler) PollTargets() {
 		return
 	}
 
+	// This chanell is used to limit number of workers working at the same time.
+	workersPool := make(chan struct{}, s.ParallelPolls)
+
+	// This WaitGroup is used to wait for all workers to finish their job.
+	var workersDone sync.WaitGroup
+
 	for _, target := range targets {
-		status := s.Poller.PollService(target.URL)
-		if s.Statuses != nil {
-			s.Statuses <- TargetStatus{target, status}
-		}
+		target := target
+		workersDone.Add(1)
+		workersPool <- struct{}{}
+		go func() {
+			status := s.Poller.PollService(target.URL)
+			if s.Statuses != nil {
+				s.Statuses <- TargetStatus{target, status}
+			}
+			<-workersPool
+			workersDone.Done()
+		}()
 	}
+
+	workersDone.Wait()
 }

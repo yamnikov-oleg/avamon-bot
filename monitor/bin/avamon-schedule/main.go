@@ -11,6 +11,7 @@ import (
 
 func main() {
 	interval := flag.Duration("int", 5*time.Second, "interval between targets poll")
+	maxParallel := flag.Uint("par", 3, "maximum parallel network requests")
 
 	flag.Parse()
 
@@ -24,6 +25,7 @@ func main() {
 	targets := monitor.NewTargetsSliceFromUrls(urls)
 	scheduler := monitor.NewScheduler(targets)
 	scheduler.Interval = *interval
+	scheduler.ParallelPolls = *maxParallel
 
 	go scheduler.Run(nil)
 

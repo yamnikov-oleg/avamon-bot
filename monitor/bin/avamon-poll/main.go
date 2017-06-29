@@ -20,6 +20,6 @@ func main() {
 	for _, url := range urls {
 		fmt.Printf("Requesting %q\n", url)
 		status := poller.PollService(url)
-		fmt.Println(status)
+		fmt.Println(status.ExpandedString())
 	}
 }

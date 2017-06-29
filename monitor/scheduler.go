@@ -19,10 +19,8 @@ type Scheduler struct {
 	ParallelPolls uint
 	// The channel into which the scheduler will write the polling results.
 	Statuses chan TargetStatus
-	// The optional channel into which the scheduler should write errors of
-	// TargetsGetter. If this field is set to nil, the scheduler will ignore
-	// TargetsGetter errors.
-	Errors chan error
+
+	errors chan error
 }
 
 // NewScheduler constructs a new Scheduler with given TargetsGetter and default
@@ -34,8 +32,17 @@ func NewScheduler(targets TargetsGetter) *Scheduler {
 		Interval:      5 * time.Second,
 		ParallelPolls: 5,
 		Statuses:      make(chan TargetStatus, 1),
-		Errors:        nil,
+		errors:        nil,
 	}
+}
+
+// Errors retruns a channel through which the Scheduler will send all errors,
+// appearing in the process.
+func (s *Scheduler) Errors() chan error {
+	if s.errors == nil {
+		s.errors = make(chan error, 10)
+	}
+	return s.errors
 }
 
 // Run start infinite looop of targets polling in foreground. Call this method
@@ -69,8 +76,8 @@ func (s *Scheduler) Run(context context.Context) {
 func (s *Scheduler) PollTargets() {
 	targets, err := s.Targets.GetTargets()
 	if err != nil {
-		if s.Errors != nil {
-			s.Errors <- err
+		if s.errors != nil {
+			s.errors <- err
 		}
 		return
 	}

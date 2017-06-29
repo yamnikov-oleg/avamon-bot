@@ -48,9 +48,11 @@ func (s *Scheduler) Run(context context.Context) {
 		done = context.Done()
 	}
 
+	ticker := time.NewTicker(s.Interval)
+
 	for {
 		select {
-		case <-time.After(s.Interval):
+		case <-ticker.C:
 			s.PollTargets()
 		case <-done:
 			return

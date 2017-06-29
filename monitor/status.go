@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -13,7 +14,7 @@ type StatusType uint
 
 const (
 	// StatusOK - the service is available.
-	StatusOK = iota
+	StatusOK StatusType = iota
 	// StatusGenericError - some generic network error.
 	StatusGenericError
 	// StatusTimeout - HTTP request timed out.
@@ -42,6 +43,35 @@ func (st StatusType) String() string {
 		return "HTTP Error"
 	}
 	return "Unknown"
+}
+
+func ScanStatusType(s string) (StatusType, bool) {
+	types := []StatusType{
+		StatusOK, StatusGenericError, StatusTimeout, StatusURLParsingError,
+		StatusDNSLookupError, StatusHTTPError,
+	}
+	for _, st := range types {
+		if st.String() == s {
+			return st, true
+		}
+	}
+	return 0, false
+}
+
+func ScanStatusTypeSoft(s string) (StatusType, bool) {
+	s = strings.ToLower(s)
+
+	types := []StatusType{
+		StatusOK, StatusGenericError, StatusTimeout, StatusURLParsingError,
+		StatusDNSLookupError, StatusHTTPError,
+	}
+	for _, st := range types {
+		str := strings.ToLower(st.String())
+		if strings.HasPrefix(str, s) {
+			return st, true
+		}
+	}
+	return 0, false
 }
 
 // Status contains information about service availability.

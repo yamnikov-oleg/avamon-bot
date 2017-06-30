@@ -5,15 +5,28 @@ import (
 	"time"
 )
 
+// Monitor is a wrapper around Scheduler, which saves statuses into a StatusStore
+// and sends status changes into Updates channel.
 type Monitor struct {
-	Scheduler      *Scheduler
-	StatusStore    StatusStore
+	// The scheduler object used to perform regular availability checks.
+	Scheduler *Scheduler
+	// Interface to the status storage. By default Monitor will use in-memory
+	// internal storage (SimpleStore), but you might want to use some other
+	// backend like Redis with RedisStore.
+	StatusStore StatusStore
+	// Expiration time for status values in the store.
 	ExpirationTime time.Duration
-	Updates        chan TargetStatus
+	// Channel by which the monitor will send all status changes.
+	// Whenever a type of a target's status (Status.Type) changes, monitor will
+	// send the target and its _new_ status into this channel.
+	// If the caller ignores this channel and does not read values from it,
+	// the monitor (and its scheduler) will clobber and stop doing status checks.
+	Updates chan TargetStatus
 
 	errors chan error
 }
 
+// New creates a Monitor with given targets getter and default field values.
 func New(targets TargetsGetter) *Monitor {
 	return &Monitor{
 		Scheduler:      NewScheduler(targets),
@@ -25,6 +38,10 @@ func New(targets TargetsGetter) *Monitor {
 	}
 }
 
+// Errors returns a channel through which the monitor will send all errors,
+// appearing in the process of its work.
+// The caller may ignore this channel, its optional.
+// It may be useful to log the monitor errors.
 func (m *Monitor) Errors() chan error {
 	if m.errors == nil {
 		m.errors = make(chan error, 10)
@@ -37,6 +54,10 @@ func (m *Monitor) Errors() chan error {
 	return m.errors
 }
 
+// Run starts the monitoring in the foreground. Call this method in another
+// goroutine if you want to do background monitoring.
+// If `ctx` is not nil, the monitor will listen to ctx.Done() and stop monitoring
+// when it recieves the signal.
 func (m *Monitor) Run(ctx context.Context) {
 	go m.Scheduler.Run(ctx)
 

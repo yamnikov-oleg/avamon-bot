@@ -95,13 +95,21 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			bot.Send(msg)
 			return 0, false
 		}
+		if len(targs) == 0 {
+			message := "Целей не обнаружено"
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+			bot.Send(msg)
+			return 0, false
+		}
 		var targetStrings []string
-		targetStrings = append(targetStrings, "Выберите небходимую цель для удаления\n")
+		targetStrings = append(targetStrings, "Введите <b>идентификатор</b> цели для удаления\n")
 		for _, target := range targs {
-			targetStrings = append(targetStrings, fmt.Sprintf("%v %v %v", target.ID, target.Title, target.URL))
+			title, url := replaceHTML(target.Title, target.URL)
+			targetStrings = append(targetStrings, fmt.Sprintf("<b>Идентификатор:</b> %v\n<b>Заголовок:</b> %v\n<b>URL:</b> %v\n", target.ID, title, url))
 		}
 		message := strings.Join(targetStrings, "\n")
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+		msg.ParseMode = tgbotapi.ModeHTML
 		bot.Send(msg)
 		return 2, true
 	}
@@ -128,7 +136,7 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			bot.Send(msg)
 			return 0, false
 		}
-		message := "Цель успешно удалена"
+		message := "Цель успешно удалена!"
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
 		bot.Send(msg)
 		return 0, false
@@ -224,6 +232,7 @@ func main() {
 			var targetStrings []string
 			for _, target := range targs {
 				t := target.ToTarget()
+				title, url := replaceHTML(target.Title, target.URL)
 				status, ok, err := mon.StatusStore.GetStatus(t)
 				if err != nil {
 					message := fmt.Sprintf("Ошибка статуса целей, свяжитесь с администратором: %v", conf.Telegram.Admin)
@@ -232,13 +241,14 @@ func main() {
 					continue
 				}
 				if !ok {
-					targetStrings = append(targetStrings, fmt.Sprintf("%v %v", target.Title, target.URL))
+					targetStrings = append(targetStrings, fmt.Sprintf("<b>Заголовок:</b> %v\n<b>URL:</b> %v\n", title, url))
 					continue
 				}
-				targetStrings = append(targetStrings, fmt.Sprintf("%v %v %v", target.Title, target.URL, status.String()))
+				targetStrings = append(targetStrings, fmt.Sprintf("<b>Заголовок:</b> %v\n<b>URL:</b> %v\n<b>Статус:</b> %v\n<b>Время ответа:</b> %v\n", title, url, status.Type, status.ResponseTime))
 			}
 			message := strings.Join(targetStrings, "\n")
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+			msg.ParseMode = tgbotapi.ModeHTML
 			bot.Send(msg)
 			continue
 		}
@@ -303,4 +313,12 @@ func monitorStart(conf *config.Config, targets db.TargetsDB, bot *tgbotapi.BotAP
 	go mon.Run(nil)
 
 	return mon, nil
+}
+
+func replaceHTML(title, url string) (string, string) {
+	title = strings.Replace(title, "<", "&lt;", -1)
+	title = strings.Replace(title, ">", "&gt;", -1)
+	url = strings.Replace(url, "<", "&lt;", -1)
+	url = strings.Replace(url, ">", "&gt;", -1)
+	return title, url
 }

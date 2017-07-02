@@ -6,11 +6,13 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/jinzhu/gorm"
 	"github.com/yamnikov-oleg/avamon-bot/frontend/avamon-bot/config"
 	"github.com/yamnikov-oleg/avamon-bot/frontend/avamon-bot/db"
+	"github.com/yamnikov-oleg/avamon-bot/monitor"
 
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
@@ -112,6 +114,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	err = monitorStart(conf, targets, bot)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
 	var sessionMap = map[int64]*session{}
 	for update := range updates {
 		if update.Message == nil {
@@ -168,4 +176,50 @@ func main() {
 		}
 
 	}
+}
+
+func monitorStart(conf *config.Config, targets db.TargetsDB, bot *tgbotapi.BotAPI) error {
+	mon := monitor.New(&targets)
+	mon.Scheduler.Interval = time.Duration(conf.Monitor.Interval) * time.Second
+	mon.Scheduler.ParallelPolls = conf.Monitor.MaxParallel
+	mon.Scheduler.Poller.Timeout = time.Duration(conf.Monitor.Timeout) * time.Second
+
+	ropts := monitor.RedisOptions{
+		Host:     conf.Redis.Host,
+		Port:     conf.Redis.Port,
+		Password: conf.Redis.Pwd,
+		DB:       conf.Redis.DB,
+	}
+
+	rs := monitor.NewRedisStore(ropts)
+	if err := rs.Ping(); err != nil {
+		return err
+	}
+	mon.StatusStore = rs
+
+	go func() {
+		for upd := range mon.Updates {
+			var rec db.Record
+			var message string
+			targets.DB.First(&rec, upd.Target.ID)
+			if upd.Status.Type == monitor.StatusOK {
+				message = fmt.Sprintf("%v is UP:\n", upd.Target)
+			} else {
+				message = fmt.Sprintf("%v is DOWN:\n", upd.Target)
+			}
+			message = message + upd.Status.ExpandedString()
+			mgs := tgbotapi.NewMessage(rec.ChatID, message)
+			bot.Send(mgs)
+		}
+	}()
+
+	go func() {
+		for err := range mon.Errors() {
+			fmt.Println(err)
+		}
+	}()
+
+	go mon.Run(nil)
+
+	return nil
 }

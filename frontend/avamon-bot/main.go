@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,6 +74,61 @@ func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			return 0, false
 		}
 		message = "Цель успешно добавлена"
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+		bot.Send(msg)
+		return 0, false
+	}
+	return 0, false
+}
+
+type deleteTarget struct {
+	DB   db.TargetsDB
+	conf config.Config
+}
+
+func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bot *tgbotapi.BotAPI) (int, bool) {
+	if stepNumber == 1 {
+		targs, err := t.DB.GetCurrentTargets(update.Message.Chat.ID)
+		if err != nil {
+			message := fmt.Sprintf("Ошибка получения целей, свяжитесь с администратором: %v", t.conf.Telegram.Admin)
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+			bot.Send(msg)
+			return 0, false
+		}
+		var targetStrings []string
+		targetStrings = append(targetStrings, "Выберите небходимую цель для удаления\n")
+		for _, target := range targs {
+			targetStrings = append(targetStrings, fmt.Sprintf("%v %v %v", target.ID, target.Title, target.URL))
+		}
+		message := strings.Join(targetStrings, "\n")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+		bot.Send(msg)
+		return 2, true
+	}
+	if stepNumber == 2 {
+		target, err := strconv.Atoi(update.Message.Text)
+		if err != nil {
+			message := "Ошибка ввода идентификатора"
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+			bot.Send(msg)
+			return 2, true
+		}
+		targetFromDB := db.Record{}
+		err = t.DB.DB.Where("ID = ?", target).First(&targetFromDB).Error
+		if err != nil || targetFromDB.ChatID != update.Message.Chat.ID {
+			message := "Цель не найдена"
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+			bot.Send(msg)
+			return 0, false
+		}
+		err = t.DB.DB.Where("ID = ?", target).Delete(db.Record{}).Error
+		if err != nil {
+			message := fmt.Sprintf("Ошибка удаления цели, свяжитесь с администратором: %v", t.conf.Telegram.Admin)
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+			bot.Send(msg)
+			return 0, false
+		}
+		message := "Цель успешно удалена"
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
 		bot.Send(msg)
 		return 0, false
@@ -170,8 +226,20 @@ func main() {
 				targetStrings = append(targetStrings, fmt.Sprintf("%v %v", target.Title, target.URL))
 			}
 			message := strings.Join(targetStrings, "\n")
-			mgs := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-			bot.Send(mgs)
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+			bot.Send(msg)
+			continue
+		}
+		if update.Message.Command() == "delete" {
+			var ok bool
+			sess.Dialog = &deleteTarget{
+				DB:   targets,
+				conf: *conf,
+			}
+			sess.Stage, ok = sess.Dialog.ContinueDialog(1, update, bot)
+			if !ok {
+				sess.Dialog = nil
+			}
 			continue
 		}
 

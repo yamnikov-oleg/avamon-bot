@@ -6,9 +6,9 @@ import (
 
 type Config struct {
 	Monitor struct {
-		Interval    int
-		MaxParallel uint
-		Timeout int
+		Interval      int
+		MaxParallel   uint
+		Timeout       int
 	}
 	Database struct {
 		Name string

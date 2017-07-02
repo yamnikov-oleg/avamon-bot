@@ -87,15 +87,16 @@ func (m *Monitor) Run(ctx context.Context) {
 func (m *Monitor) isStatusNew(oldStatus Status, oldOk bool, newStatus Status) bool {
 	if oldOk {
 		return oldStatus.Type != newStatus.Type
-	} else {
-		if newStatus.Type != StatusOK {
-			return true
-		}
-		if newStatus.Type == StatusOK && m.NotifyFirstOK {
-			return true
-		}
-		return false
 	}
+
+	// oldOk = false
+	if newStatus.Type != StatusOK {
+		return true
+	}
+	if newStatus.Type == StatusOK && m.NotifyFirstOK {
+		return true
+	}
+	return false
 }
 
 func (m *Monitor) applyNewStatus(t Target, s Status) {

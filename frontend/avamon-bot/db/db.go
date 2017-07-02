@@ -12,6 +12,14 @@ type Record struct {
 	URL    string
 }
 
+func (r *Record) ToTarget() monitor.Target {
+	return monitor.Target{
+		ID:    r.ID,
+		Title: r.Title,
+		URL:   r.URL,
+	}
+}
+
 // type TargetsGetter interface {
 // 	GetTargets() ([]Target, error)
 // }
@@ -28,11 +36,7 @@ func (t *TargetsDB) GetTargets() ([]monitor.Target, error) {
 	}
 	var targets []monitor.Target
 	for _, record := range records {
-		targets = append(targets, monitor.Target{
-			ID:    record.ID,
-			Title: record.Title,
-			URL:   record.URL,
-		})
+		targets = append(targets, record.ToTarget())
 	}
 	return targets, nil
 }

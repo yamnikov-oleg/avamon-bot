@@ -170,7 +170,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = monitorStart(conf, targets, bot)
+	mon, err := monitorStart(conf, targets, bot)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -223,7 +223,19 @@ func main() {
 			}
 			var targetStrings []string
 			for _, target := range targs {
-				targetStrings = append(targetStrings, fmt.Sprintf("%v %v", target.Title, target.URL))
+				t := target.ToTarget()
+				status, ok, err := mon.StatusStore.GetStatus(t)
+				if err != nil {
+					message := fmt.Sprintf("Ошибка статуса целей, свяжитесь с администратором: %v", conf.Telegram.Admin)
+					msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+					bot.Send(msg)
+					continue
+				}
+				if !ok {
+					targetStrings = append(targetStrings, fmt.Sprintf("%v %v", target.Title, target.URL))
+					continue
+				}
+				targetStrings = append(targetStrings, fmt.Sprintf("%v %v %v", target.Title, target.URL, status.String()))
 			}
 			message := strings.Join(targetStrings, "\n")
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
@@ -246,11 +258,12 @@ func main() {
 	}
 }
 
-func monitorStart(conf *config.Config, targets db.TargetsDB, bot *tgbotapi.BotAPI) error {
+func monitorStart(conf *config.Config, targets db.TargetsDB, bot *tgbotapi.BotAPI) (*monitor.Monitor, error) {
 	mon := monitor.New(&targets)
 	mon.Scheduler.Interval = time.Duration(conf.Monitor.Interval) * time.Second
 	mon.Scheduler.ParallelPolls = conf.Monitor.MaxParallel
 	mon.Scheduler.Poller.Timeout = time.Duration(conf.Monitor.Timeout) * time.Second
+	mon.NotifyFirstOK = conf.Monitor.NotifyFirstOK
 
 	ropts := monitor.RedisOptions{
 		Host:     conf.Redis.Host,
@@ -261,7 +274,7 @@ func monitorStart(conf *config.Config, targets db.TargetsDB, bot *tgbotapi.BotAP
 
 	rs := monitor.NewRedisStore(ropts)
 	if err := rs.Ping(); err != nil {
-		return err
+		return nil, err
 	}
 	mon.StatusStore = rs
 
@@ -289,5 +302,5 @@ func monitorStart(conf *config.Config, targets db.TargetsDB, bot *tgbotapi.BotAP
 
 	go mon.Run(nil)
 
-	return nil
+	return mon, nil
 }

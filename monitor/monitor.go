@@ -16,6 +16,13 @@ type Monitor struct {
 	StatusStore StatusStore
 	// Expiration time for status values in the store.
 	ExpirationTime time.Duration
+	// If this flag describes how the monitor reacts to new statuses.
+	// A new status is a status of a target, which has not been checked out into
+	// status store yet.
+	// If this flag is set to false, monitor will NOT send new OK statuses
+	// into Updates chanel, but will send new error statuses.
+	// If this flag is set to true, monitor will send any new status to Updates.
+	NotifyFirstOK bool
 	// Channel by which the monitor will send all status changes.
 	// Whenever a type of a target's status (Status.Type) changes, monitor will
 	// send the target and its _new_ status into this channel.
@@ -77,6 +84,20 @@ func (m *Monitor) Run(ctx context.Context) {
 	}
 }
 
+func (m *Monitor) isStatusNew(oldStatus Status, oldOk bool, newStatus Status) bool {
+	if oldOk {
+		return oldStatus.Type != newStatus.Type
+	} else {
+		if newStatus.Type != StatusOK {
+			return true
+		}
+		if newStatus.Type == StatusOK && m.NotifyFirstOK {
+			return true
+		}
+		return false
+	}
+}
+
 func (m *Monitor) applyNewStatus(t Target, s Status) {
 	oldStatus, ok, err := m.StatusStore.GetStatus(t)
 	if err != nil && m.errors != nil {
@@ -85,7 +106,7 @@ func (m *Monitor) applyNewStatus(t Target, s Status) {
 		ok = false
 	}
 
-	if !ok || oldStatus.Type != s.Type {
+	if m.isStatusNew(oldStatus, ok, s) {
 		m.Updates <- TargetStatus{t, s}
 	}
 	m.StatusStore.SetStatus(t, s, m.ExpirationTime)

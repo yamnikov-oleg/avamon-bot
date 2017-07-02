@@ -12,6 +12,7 @@ import (
 func main() {
 	interval := flag.Duration("int", 5*time.Second, "Interval between targets poll")
 	maxParallel := flag.Uint("par", 3, "Maximum parallel network requests")
+	notifyFirstOK := flag.Bool("fok", false, "Notify first OK status")
 
 	redis := flag.Bool("redis", false, "Store statuses to redis db")
 	host := flag.String("h", "localhost", "Host of redis server")
@@ -26,6 +27,7 @@ func main() {
 	mon := monitor.New(targets)
 	mon.Scheduler.Interval = *interval
 	mon.Scheduler.ParallelPolls = *maxParallel
+	mon.NotifyFirstOK = *notifyFirstOK
 
 	if *redis {
 		ropts := monitor.RedisOptions{

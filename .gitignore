@@ -15,3 +15,6 @@
 
 # Databases
 *.sqlite3
+
+# Local config
+config.toml

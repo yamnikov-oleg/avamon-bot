@@ -1,0 +1,16 @@
+[monitor]
+interval = 10
+maxparallel = 3
+timeout = 7
+notifyfirstok = false
+[database]
+name = "example.sqlite3"
+[telegram]
+apikey = "Your API-Key"
+admin = "Your Telegram nickname"
+debug = true
+[redis]
+host="localhost"
+port=6379
+pwd="password"
+db=0

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -18,6 +19,83 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
 
+func formatStatusUpdate(targ monitor.Target, stat monitor.Status) string {
+	var output string
+	title, url := replaceHTML(targ.Title, targ.URL)
+	if stat.Type == monitor.StatusOK {
+		output += "☘️☘️☘️☘️☘️☘️☘️☘️☘️☘️\n"
+	} else {
+		output += "🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨\n"
+	}
+	output += fmt.Sprintf("<b>%v:</b> <b>%v</b>\n\n", title, stat.Type)
+	output += fmt.Sprintf("<b>URL:</b> %v\n", url)
+	output += fmt.Sprintf("<b>Время ответа:</b> %v\n", stat.ResponseTime)
+	if stat.Type != monitor.StatusOK {
+		statusErr := strings.Replace(stat.Err.Error(), "<", "&lt;", -1)
+		statusErr = strings.Replace(statusErr, ">", "&gt;", -1)
+		output += fmt.Sprintf("<b>Сообщение:</b> %v\n", stat.Err)
+	}
+	if stat.Type == monitor.StatusHTTPError {
+		output += fmt.Sprintf("<b>Статус HTTP:</b> %v %v\n", stat.HTTPStatusCode, http.StatusText(stat.HTTPStatusCode))
+	}
+	if stat.Type == monitor.StatusOK {
+		output += "☘️☘️☘️☘️☘️☘️☘️☘️☘️☘️\n"
+	} else {
+		output += "🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨\n"
+	}
+	return output
+}
+
+func replaceHTML(title, url string) (string, string) {
+	title = strings.Replace(title, "<", "&lt;", -1)
+	title = strings.Replace(title, ">", "&gt;", -1)
+	url = strings.Replace(url, "<", "&lt;", -1)
+	url = strings.Replace(url, ">", "&gt;", -1)
+	return title, url
+}
+
+func monitorStart(conf *config.Config, targets db.TargetsDB, bot *tgbotapi.BotAPI) (*monitor.Monitor, error) {
+	mon := monitor.New(&targets)
+	mon.Scheduler.Interval = time.Duration(conf.Monitor.Interval) * time.Second
+	mon.Scheduler.ParallelPolls = conf.Monitor.MaxParallel
+	mon.Scheduler.Poller.Timeout = time.Duration(conf.Monitor.Timeout) * time.Second
+	mon.NotifyFirstOK = conf.Monitor.NotifyFirstOK
+
+	ropts := monitor.RedisOptions{
+		Host:     conf.Redis.Host,
+		Port:     conf.Redis.Port,
+		Password: conf.Redis.Pwd,
+		DB:       conf.Redis.DB,
+	}
+
+	rs := monitor.NewRedisStore(ropts)
+	if err := rs.Ping(); err != nil {
+		return nil, err
+	}
+	mon.StatusStore = rs
+
+	go func() {
+		for upd := range mon.Updates {
+			var rec db.Record
+			targets.DB.First(&rec, upd.Target.ID)
+			message := formatStatusUpdate(upd.Target, upd.Status)
+			msg := tgbotapi.NewMessage(rec.ChatID, message)
+			msg.ParseMode = tgbotapi.ModeHTML
+			bot.Send(msg)
+		}
+	}()
+
+	go func() {
+		for err := range mon.Errors() {
+			fmt.Println(err)
+		}
+	}()
+
+	go mon.Run(nil)
+
+	return mon, nil
+}
+
 type session struct {
 	Stage  int
 	Dialog dialog
@@ -26,11 +104,6 @@ type session struct {
 type dialog interface {
 	ContinueDialog(stepNumber int, update tgbotapi.Update, bot *tgbotapi.BotAPI) (int, bool)
 }
-
-// TODO:
-// Добавление
-// Просмотр списка целей - без диалога
-// Удаление цели
 
 type addNewTarget struct {
 	Title string
@@ -96,7 +169,7 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			return 0, false
 		}
 		if len(targs) == 0 {
-			message := "Целей не обнаружено"
+			message := "Целей не обнаружено!"
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
 			bot.Send(msg)
 			return 0, false
@@ -168,7 +241,7 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	bot.Debug = true
+	bot.Debug = conf.Telegram.Debug
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 0
 
@@ -229,6 +302,12 @@ func main() {
 				bot.Send(msg)
 				continue
 			}
+			if len(targs) == 0 {
+				message := "Целей не обнаружено!"
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+				bot.Send(msg)
+				continue
+			}
 			var targetStrings []string
 			for _, target := range targs {
 				t := target.ToTarget()
@@ -264,61 +343,5 @@ func main() {
 			}
 			continue
 		}
-
 	}
-}
-
-func monitorStart(conf *config.Config, targets db.TargetsDB, bot *tgbotapi.BotAPI) (*monitor.Monitor, error) {
-	mon := monitor.New(&targets)
-	mon.Scheduler.Interval = time.Duration(conf.Monitor.Interval) * time.Second
-	mon.Scheduler.ParallelPolls = conf.Monitor.MaxParallel
-	mon.Scheduler.Poller.Timeout = time.Duration(conf.Monitor.Timeout) * time.Second
-	mon.NotifyFirstOK = conf.Monitor.NotifyFirstOK
-
-	ropts := monitor.RedisOptions{
-		Host:     conf.Redis.Host,
-		Port:     conf.Redis.Port,
-		Password: conf.Redis.Pwd,
-		DB:       conf.Redis.DB,
-	}
-
-	rs := monitor.NewRedisStore(ropts)
-	if err := rs.Ping(); err != nil {
-		return nil, err
-	}
-	mon.StatusStore = rs
-
-	go func() {
-		for upd := range mon.Updates {
-			var rec db.Record
-			var message string
-			targets.DB.First(&rec, upd.Target.ID)
-			if upd.Status.Type == monitor.StatusOK {
-				message = fmt.Sprintf("%v is UP:\n", upd.Target)
-			} else {
-				message = fmt.Sprintf("%v is DOWN:\n", upd.Target)
-			}
-			message = message + upd.Status.ExpandedString()
-			mgs := tgbotapi.NewMessage(rec.ChatID, message)
-			bot.Send(mgs)
-		}
-	}()
-
-	go func() {
-		for err := range mon.Errors() {
-			fmt.Println(err)
-		}
-	}()
-
-	go mon.Run(nil)
-
-	return mon, nil
-}
-
-func replaceHTML(title, url string) (string, string) {
-	title = strings.Replace(title, "<", "&lt;", -1)
-	title = strings.Replace(title, ">", "&gt;", -1)
-	url = strings.Replace(url, "<", "&lt;", -1)
-	url = strings.Replace(url, ">", "&gt;", -1)
-	return title, url
 }

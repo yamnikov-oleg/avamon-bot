@@ -17,6 +17,7 @@ type Config struct {
 	Telegram struct {
 		APIKey string
 		Admin  string
+		Debug bool
 	}
 	Redis struct {
 		Host string

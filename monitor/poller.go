@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -24,6 +25,10 @@ func NewPoller() *Poller {
 func (p *Poller) PollService(url string) Status {
 	client := &http.Client{}
 	client.Timeout = p.Timeout
+
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		url = "http://" + url
+	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {

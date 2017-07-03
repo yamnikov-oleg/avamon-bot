@@ -21,11 +21,15 @@ import (
 
 func formatStatusUpdate(targ monitor.Target, stat monitor.Status) string {
 	var output string
+	// A line of green clovers emojis
+	clover := strings.Repeat(string([]rune{0x2618, 0xfe0f}), 10) + "\n"
+	// A line of red alarm emojis
+	alarm := strings.Repeat(string([]rune{0x1f6a8}), 10) + "\n"
 	title, url := replaceHTML(targ.Title, targ.URL)
 	if stat.Type == monitor.StatusOK {
-		output += "☘️☘️☘️☘️☘️☘️☘️☘️☘️☘️\n"
+		output += clover
 	} else {
-		output += "🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨\n"
+		output += alarm
 	}
 	output += fmt.Sprintf("<b>%v:</b> <b>%v</b>\n\n", title, stat.Type)
 	output += fmt.Sprintf("<b>URL:</b> %v\n", url)
@@ -39,9 +43,9 @@ func formatStatusUpdate(targ monitor.Target, stat monitor.Status) string {
 		output += fmt.Sprintf("<b>Статус HTTP:</b> %v %v\n", stat.HTTPStatusCode, http.StatusText(stat.HTTPStatusCode))
 	}
 	if stat.Type == monitor.StatusOK {
-		output += "☘️☘️☘️☘️☘️☘️☘️☘️☘️☘️\n"
+		output += clover
 	} else {
-		output += "🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨\n"
+		output += alarm
 	}
 	return output
 }
@@ -303,6 +307,7 @@ func main() {
 		}
 		if update.Message.Command() == "start" {
 			message := "Привет!\nЯ бот который умеет следить за доступностью сайтов.\n"
+
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
 			bot.Send(msg)
 			continue

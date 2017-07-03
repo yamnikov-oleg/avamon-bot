@@ -116,6 +116,11 @@ func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 	if stepNumber == 1 {
 		message := "Введите заголовок цели"
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+		msg.ReplyToMessageID = update.Message.MessageID
+		msg.ReplyMarkup = tgbotapi.ForceReply{
+			ForceReply: true,
+			Selective:  true,
+		}
 		bot.Send(msg)
 		return 2, true
 	}
@@ -123,6 +128,11 @@ func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 		t.Title = update.Message.Text
 		message := "Введите URL адрес цели"
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+		msg.ReplyToMessageID = update.Message.MessageID
+		msg.ReplyMarkup = tgbotapi.ForceReply{
+			ForceReply: true,
+			Selective:  true,
+		}
 		bot.Send(msg)
 		return 3, true
 	}
@@ -131,6 +141,11 @@ func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 		if _, err := url.Parse(update.Message.Text); err != nil {
 			message = "Ошибка ввода URL адреса, попробуйте еще раз"
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+			msg.ReplyToMessageID = update.Message.MessageID
+			msg.ReplyMarkup = tgbotapi.ForceReply{
+				ForceReply: true,
+				Selective:  true,
+			}
 			bot.Send(msg)
 			return 3, true
 		}
@@ -183,6 +198,11 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 		message := strings.Join(targetStrings, "\n")
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
 		msg.ParseMode = tgbotapi.ModeHTML
+		msg.ReplyToMessageID = update.Message.MessageID
+		msg.ReplyMarkup = tgbotapi.ForceReply{
+			ForceReply: true,
+			Selective:  true,
+		}
 		bot.Send(msg)
 		return 2, true
 	}
@@ -191,6 +211,11 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 		if err != nil {
 			message := "Ошибка ввода идентификатора"
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
+			msg.ReplyToMessageID = update.Message.MessageID
+			msg.ReplyMarkup = tgbotapi.ForceReply{
+				ForceReply: true,
+				Selective:  true,
+			}
 			bot.Send(msg)
 			return 2, true
 		}

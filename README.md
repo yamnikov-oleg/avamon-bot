@@ -9,14 +9,27 @@ Small telegram bot monitoring web sites availability.
 You must have docker installed to use this method.
 
 1. Clone the repo.
-2. Run `build.sh -t avamon-bot`, it will build the docker image for you.
-3. Copy the default config at `./frontend/avamon-bot/config.default.toml` and
+2. Run `build.sh`, it will build the docker image for you and will name it `avamon-bot`.
+3. Copy the default config from `./frontend/avamon-bot/config.default.toml` and
   edit it however you like. Don't forget to specify the bot token.
-4. Run the redis container like so:
-  `docker run -p 6379:6379 redis`
-5. Run the bot container this way:
-  `docker run -v ./path/to/config.toml:/var/avamon-bot/config.toml avamon-bot`
-6. That's it.
+  Also set redis host to `redis`.
+4. Create `docker-compose.yml` with this content:
+  ```
+  version: '3'
+  services:
+    bot:
+      image: avamon-bot
+      links:
+      - redis
+      volumes:
+      - ./config.toml:/var/avamon-bot/config.toml:ro
+    redis:
+      image: redis
+  ```
+5. Run with `docker-compose up`.
+
+If you want to persist the sqlite3 database, edit the path of the db file in
+the config (`database.name`), then mount it as docker volume.
 
 ### With Go compiler.
 

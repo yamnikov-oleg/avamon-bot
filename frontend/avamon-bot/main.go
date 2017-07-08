@@ -17,85 +17,91 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
 
-func formatStatusUpdate(targ monitor.Target, stat monitor.Status) string {
+func replaceHTML(input string) string {
+	input = strings.Replace(input, "<", "&lt;", -1)
+	input = strings.Replace(input, ">", "&gt;", -1)
+	return input
+}
+
+type Bot struct {
+	Config  *Config
+	DB      *TargetsDB
+	TgBot   *tgbotapi.BotAPI
+	Monitor *monitor.Monitor
+}
+
+func (b *Bot) formatStatusUpdate(target monitor.Target, status monitor.Status) string {
 	var output string
-	// A line of green clovers emojis
-	clover := strings.Repeat(string([]rune{0x2618, 0xfe0f}), 10) + "\n"
-	// A line of red alarm emojis
-	alarm := strings.Repeat(string([]rune{0x1f6a8}), 10) + "\n"
-	title, url := replaceHTML(targ.Title, targ.URL)
-	if stat.Type == monitor.StatusOK {
-		output += clover
+	var sign string
+
+	if status.Type == monitor.StatusOK {
+		// A line of green clovers emojis
+		sign = strings.Repeat(string([]rune{0x2618, 0xfe0f}), 10) + "\n"
 	} else {
-		output += alarm
+		// A line of red alarm emojis
+		sign = strings.Repeat(string([]rune{0x1f6a8}), 10) + "\n"
 	}
-	output += fmt.Sprintf("<b>%v:</b> <b>%v</b>\n\n", title, stat.Type)
-	output += fmt.Sprintf("<b>URL:</b> %v\n", url)
-	output += fmt.Sprintf("<b>Время ответа:</b> %v\n", stat.ResponseTime)
-	if stat.Type != monitor.StatusOK {
-		statusErr := strings.Replace(stat.Err.Error(), "<", "&lt;", -1)
-		statusErr = strings.Replace(statusErr, ">", "&gt;", -1)
-		output += fmt.Sprintf("<b>Сообщение:</b> %v\n", stat.Err)
+
+	output += sign
+	output += fmt.Sprintf("<b>%v:</b> <b>%v</b>\n\n", replaceHTML(target.Title), status.Type)
+	output += fmt.Sprintf("<b>URL:</b> %v\n", replaceHTML(target.URL))
+	output += fmt.Sprintf("<b>Время ответа:</b> %v\n", status.ResponseTime)
+
+	if status.Type != monitor.StatusOK {
+		output += fmt.Sprintf("<b>Сообщение:</b> %v\n", replaceHTML(status.Err.Error()))
 	}
-	if stat.Type == monitor.StatusHTTPError {
-		output += fmt.Sprintf("<b>Статус HTTP:</b> %v %v\n", stat.HTTPStatusCode, http.StatusText(stat.HTTPStatusCode))
+	if status.Type == monitor.StatusHTTPError {
+		output += fmt.Sprintf("<b>Статус HTTP:</b> %v %v\n", status.HTTPStatusCode, http.StatusText(status.HTTPStatusCode))
 	}
-	if stat.Type == monitor.StatusOK {
-		output += clover
-	} else {
-		output += alarm
-	}
+	output += sign
+
 	return output
 }
 
-func replaceHTML(title, url string) (string, string) {
-	title = strings.Replace(title, "<", "&lt;", -1)
-	title = strings.Replace(title, ">", "&gt;", -1)
-	url = strings.Replace(url, "<", "&lt;", -1)
-	url = strings.Replace(url, ">", "&gt;", -1)
-	return title, url
-}
-
-func monitorStart(conf *Config, targets TargetsDB, bot *tgbotapi.BotAPI) (*monitor.Monitor, error) {
-	mon := monitor.New(&targets)
-	mon.Scheduler.Interval = time.Duration(conf.Monitor.Interval) * time.Second
-	mon.Scheduler.ParallelPolls = conf.Monitor.MaxParallel
-	mon.Scheduler.Poller.Timeout = time.Duration(conf.Monitor.Timeout) * time.Second
-	mon.NotifyFirstOK = conf.Monitor.NotifyFirstOK
+func (b *Bot) monitorCreate() error {
+	mon := monitor.New(b.DB)
+	mon.Scheduler.Interval = time.Duration(b.Config.Monitor.Interval) * time.Second
+	mon.Scheduler.ParallelPolls = b.Config.Monitor.MaxParallel
+	mon.Scheduler.Poller.Timeout = time.Duration(b.Config.Monitor.Timeout) * time.Second
+	mon.NotifyFirstOK = b.Config.Monitor.NotifyFirstOK
 
 	ropts := monitor.RedisOptions{
-		Host:     conf.Redis.Host,
-		Port:     conf.Redis.Port,
-		Password: conf.Redis.Pwd,
-		DB:       conf.Redis.DB,
+		Host:     b.Config.Redis.Host,
+		Port:     b.Config.Redis.Port,
+		Password: b.Config.Redis.Pwd,
+		DB:       b.Config.Redis.DB,
 	}
 
 	rs := monitor.NewRedisStore(ropts)
 	if err := rs.Ping(); err != nil {
-		return nil, err
+		return err
 	}
 	mon.StatusStore = rs
 
+	b.Monitor = mon
+
+	return nil
+}
+
+func (b *Bot) monitorStart() {
 	go func() {
-		for upd := range mon.Updates {
+		for upd := range b.Monitor.Updates {
 			var rec Record
-			targets.DB.First(&rec, upd.Target.ID)
-			message := formatStatusUpdate(upd.Target, upd.Status)
+			b.DB.DB.First(&rec, upd.Target.ID)
+			message := b.formatStatusUpdate(upd.Target, upd.Status)
 			msg := tgbotapi.NewMessage(rec.ChatID, message)
 			msg.ParseMode = tgbotapi.ModeHTML
-			bot.Send(msg)
+			b.TgBot.Send(msg)
 		}
 	}()
 
 	go func() {
-		for err := range mon.Errors() {
+		for err := range b.Monitor.Errors() {
 			fmt.Println(err)
 		}
 	}()
 
-	go mon.Run(nil)
-
-	return mon, nil
+	go b.Monitor.Run(nil)
 }
 
 type session struct {
@@ -194,8 +200,13 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 		var targetStrings []string
 		targetStrings = append(targetStrings, "Введите <b>идентификатор</b> цели для удаления\n")
 		for _, target := range targs {
-			title, url := replaceHTML(target.Title, target.URL)
-			targetStrings = append(targetStrings, fmt.Sprintf("<b>Идентификатор:</b> %v\n<b>Заголовок:</b> %v\n<b>URL:</b> %v\n", target.ID, title, url))
+			targetStrings = append(
+				targetStrings,
+				fmt.Sprintf(
+					"<b>Идентификатор:</b> %v\n<b>Заголовок:</b> %v\n<b>URL:</b> %v\n",
+					target.ID,
+					replaceHTML(target.Title),
+					replaceHTML(target.URL)))
 		}
 		message := strings.Join(targetStrings, "\n")
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
@@ -245,44 +256,49 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 }
 
 func main() {
+	bot := Bot{}
+
 	configPath := flag.String("config", "config.toml", "Path to the config file")
-
 	flag.Parse()
-	conf, err := ReadConfig(*configPath)
+
+	var err error
+	bot.Config, err = ReadConfig(*configPath)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	connection, err := gorm.Open("sqlite3", conf.Database.Name)
+	connection, err := gorm.Open("sqlite3", bot.Config.Database.Name)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	targets := TargetsDB{
+	bot.DB = &TargetsDB{
 		DB: connection,
 	}
-	targets.Migrate()
-	bot, err := tgbotapi.NewBotAPI(conf.Telegram.APIKey)
+	bot.DB.Migrate()
+
+	bot.TgBot, err = tgbotapi.NewBotAPI(bot.Config.Telegram.APIKey)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	bot.Debug = conf.Telegram.Debug
+	bot.TgBot.Debug = bot.Config.Telegram.Debug
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 0
 
-	updates, err := bot.GetUpdatesChan(u)
+	updates, err := bot.TgBot.GetUpdatesChan(u)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	mon, err := monitorStart(conf, targets, bot)
+	err = bot.monitorCreate()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	bot.monitorStart()
 
 	var sessionMap = map[int64]*session{}
 	for update := range updates {
@@ -297,7 +313,7 @@ func main() {
 		sess := sessionMap[update.Message.Chat.ID]
 		if sess.Dialog != nil {
 			var ok bool
-			sess.Stage, ok = sess.Dialog.ContinueDialog(sess.Stage, update, bot)
+			sess.Stage, ok = sess.Dialog.ContinueDialog(sess.Stage, update, bot.TgBot)
 			if !ok {
 				sess.Dialog = nil
 			}
@@ -307,65 +323,76 @@ func main() {
 			message := "Привет!\nЯ бот который умеет следить за доступностью сайтов.\n"
 
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-			bot.Send(msg)
+			bot.TgBot.Send(msg)
 			continue
 		}
 		if update.Message.Command() == "add" {
 			var ok bool
 			sess.Dialog = &addNewTarget{
-				DB:   targets,
-				conf: *conf,
+				DB:   *bot.DB,
+				conf: *bot.Config,
 			}
-			sess.Stage, ok = sess.Dialog.ContinueDialog(1, update, bot)
+			sess.Stage, ok = sess.Dialog.ContinueDialog(1, update, bot.TgBot)
 			if !ok {
 				sess.Dialog = nil
 			}
 			continue
 		}
 		if update.Message.Command() == "targets" {
-			targs, err := targets.GetCurrentTargets(update.Message.Chat.ID)
+			targs, err := bot.DB.GetCurrentTargets(update.Message.Chat.ID)
 			if err != nil {
-				message := fmt.Sprintf("Ошибка получения целей, свяжитесь с администратором: %v", conf.Telegram.Admin)
+				message := fmt.Sprintf("Ошибка получения целей, свяжитесь с администратором: %v", bot.Config.Telegram.Admin)
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-				bot.Send(msg)
+				bot.TgBot.Send(msg)
 				continue
 			}
 			if len(targs) == 0 {
 				message := "Целей не обнаружено!"
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-				bot.Send(msg)
+				bot.TgBot.Send(msg)
 				continue
 			}
 			var targetStrings []string
 			for _, target := range targs {
-				t := target.ToTarget()
-				title, url := replaceHTML(target.Title, target.URL)
-				status, ok, err := mon.StatusStore.GetStatus(t)
+				status, ok, err := bot.Monitor.StatusStore.GetStatus(target.ToTarget())
 				if err != nil {
-					message := fmt.Sprintf("Ошибка статуса целей, свяжитесь с администратором: %v", conf.Telegram.Admin)
+					message := fmt.Sprintf(
+						"Ошибка статуса целей, свяжитесь с администратором: %v",
+						bot.Config.Telegram.Admin)
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-					bot.Send(msg)
+					bot.TgBot.Send(msg)
 					continue
 				}
 				if !ok {
-					targetStrings = append(targetStrings, fmt.Sprintf("<b>Заголовок:</b> %v\n<b>URL:</b> %v\n", title, url))
+					targetStrings = append(
+						targetStrings,
+						fmt.Sprintf(
+							"<b>Заголовок:</b> %v\n<b>URL:</b> %v\n",
+							replaceHTML(target.Title),
+							replaceHTML(target.URL)))
 					continue
 				}
-				targetStrings = append(targetStrings, fmt.Sprintf("<b>Заголовок:</b> %v\n<b>URL:</b> %v\n<b>Статус:</b> %v\n<b>Время ответа:</b> %v\n", title, url, status.Type, status.ResponseTime))
+				targetStrings = append(
+					targetStrings,
+					fmt.Sprintf(
+						"<b>Заголовок:</b> %v\n<b>URL:</b> %v\n<b>Статус:</b> %v\n<b>Время ответа:</b> %v\n",
+						replaceHTML(target.Title),
+						replaceHTML(target.URL),
+						status.Type, status.ResponseTime))
 			}
 			message := strings.Join(targetStrings, "\n")
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
 			msg.ParseMode = tgbotapi.ModeHTML
-			bot.Send(msg)
+			bot.TgBot.Send(msg)
 			continue
 		}
 		if update.Message.Command() == "delete" {
 			var ok bool
 			sess.Dialog = &deleteTarget{
-				DB:   targets,
-				conf: *conf,
+				DB:   *bot.DB,
+				conf: *bot.Config,
 			}
-			sess.Stage, ok = sess.Dialog.ContinueDialog(1, update, bot)
+			sess.Stage, ok = sess.Dialog.ContinueDialog(1, update, bot.TgBot)
 			if !ok {
 				sess.Dialog = nil
 			}

@@ -116,8 +116,7 @@ type dialog interface {
 type addNewTarget struct {
 	Title string
 	URL   string
-	DB    TargetsDB
-	conf  Config
+	bot   *Bot
 }
 
 func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bot *tgbotapi.BotAPI) (int, bool) {
@@ -158,13 +157,15 @@ func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			return 3, true
 		}
 		t.URL = update.Message.Text
-		err := t.DB.CreateTarget(Record{
+		err := t.bot.DB.CreateTarget(Record{
 			ChatID: update.Message.Chat.ID,
 			Title:  t.Title,
 			URL:    t.URL,
 		})
 		if err != nil {
-			message = fmt.Sprintf("Ошибка добавления цели, свяжитесь с администратором: %v", t.conf.Telegram.Admin)
+			message = fmt.Sprintf(
+				"Ошибка добавления цели, свяжитесь с администратором: %v",
+				t.bot.Config.Telegram.Admin)
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
 			bot.Send(msg)
 			return 0, false
@@ -178,15 +179,16 @@ func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 }
 
 type deleteTarget struct {
-	DB   TargetsDB
-	conf Config
+	bot *Bot
 }
 
 func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bot *tgbotapi.BotAPI) (int, bool) {
 	if stepNumber == 1 {
-		targs, err := t.DB.GetCurrentTargets(update.Message.Chat.ID)
+		targs, err := t.bot.DB.GetCurrentTargets(update.Message.Chat.ID)
 		if err != nil {
-			message := fmt.Sprintf("Ошибка получения целей, свяжитесь с администратором: %v", t.conf.Telegram.Admin)
+			message := fmt.Sprintf(
+				"Ошибка получения целей, свяжитесь с администратором: %v",
+				t.bot.Config.Telegram.Admin)
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
 			bot.Send(msg)
 			return 0, false
@@ -233,16 +235,18 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			return 2, true
 		}
 		targetFromDB := Record{}
-		err = t.DB.DB.Where("ID = ?", target).First(&targetFromDB).Error
+		err = t.bot.DB.DB.Where("ID = ?", target).First(&targetFromDB).Error
 		if err != nil || targetFromDB.ChatID != update.Message.Chat.ID {
 			message := "Цель не найдена"
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
 			bot.Send(msg)
 			return 0, false
 		}
-		err = t.DB.DB.Where("ID = ?", target).Delete(Record{}).Error
+		err = t.bot.DB.DB.Where("ID = ?", target).Delete(Record{}).Error
 		if err != nil {
-			message := fmt.Sprintf("Ошибка удаления цели, свяжитесь с администратором: %v", t.conf.Telegram.Admin)
+			message := fmt.Sprintf(
+				"Ошибка удаления цели, свяжитесь с администратором: %v",
+				t.bot.Config.Telegram.Admin)
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
 			bot.Send(msg)
 			return 0, false
@@ -329,8 +333,7 @@ func main() {
 		if update.Message.Command() == "add" {
 			var ok bool
 			sess.Dialog = &addNewTarget{
-				DB:   *bot.DB,
-				conf: *bot.Config,
+				bot: &bot,
 			}
 			sess.Stage, ok = sess.Dialog.ContinueDialog(1, update, bot.TgBot)
 			if !ok {
@@ -389,8 +392,7 @@ func main() {
 		if update.Message.Command() == "delete" {
 			var ok bool
 			sess.Dialog = &deleteTarget{
-				DB:   *bot.DB,
-				conf: *bot.Config,
+				bot: &bot,
 			}
 			sess.Stage, ok = sess.Dialog.ContinueDialog(1, update, bot.TgBot)
 			if !ok {

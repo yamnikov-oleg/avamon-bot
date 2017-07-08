@@ -1,4 +1,4 @@
-package config
+package main
 
 import (
 	"github.com/BurntSushi/toml"
@@ -6,9 +6,9 @@ import (
 
 type Config struct {
 	Monitor struct {
-		Interval    int
-		MaxParallel uint
-		Timeout     int
+		Interval      int
+		MaxParallel   uint
+		Timeout       int
 		NotifyFirstOK bool
 	}
 	Database struct {
@@ -17,7 +17,7 @@ type Config struct {
 	Telegram struct {
 		APIKey string
 		Admin  string
-		Debug bool
+		Debug  bool
 	}
 	Redis struct {
 		Host string

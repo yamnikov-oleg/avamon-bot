@@ -12,8 +12,6 @@ import (
 
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/jinzhu/gorm"
-	"github.com/yamnikov-oleg/avamon-bot/frontend/avamon-bot/config"
-	"github.com/yamnikov-oleg/avamon-bot/frontend/avamon-bot/db"
 	"github.com/yamnikov-oleg/avamon-bot/monitor"
 
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
@@ -58,7 +56,7 @@ func replaceHTML(title, url string) (string, string) {
 	return title, url
 }
 
-func monitorStart(conf *config.Config, targets db.TargetsDB, bot *tgbotapi.BotAPI) (*monitor.Monitor, error) {
+func monitorStart(conf *Config, targets TargetsDB, bot *tgbotapi.BotAPI) (*monitor.Monitor, error) {
 	mon := monitor.New(&targets)
 	mon.Scheduler.Interval = time.Duration(conf.Monitor.Interval) * time.Second
 	mon.Scheduler.ParallelPolls = conf.Monitor.MaxParallel
@@ -80,7 +78,7 @@ func monitorStart(conf *config.Config, targets db.TargetsDB, bot *tgbotapi.BotAP
 
 	go func() {
 		for upd := range mon.Updates {
-			var rec db.Record
+			var rec Record
 			targets.DB.First(&rec, upd.Target.ID)
 			message := formatStatusUpdate(upd.Target, upd.Status)
 			msg := tgbotapi.NewMessage(rec.ChatID, message)
@@ -112,8 +110,8 @@ type dialog interface {
 type addNewTarget struct {
 	Title string
 	URL   string
-	DB    db.TargetsDB
-	conf  config.Config
+	DB    TargetsDB
+	conf  Config
 }
 
 func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bot *tgbotapi.BotAPI) (int, bool) {
@@ -154,7 +152,7 @@ func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			return 3, true
 		}
 		t.URL = update.Message.Text
-		err := t.DB.CreateTarget(db.Record{
+		err := t.DB.CreateTarget(Record{
 			ChatID: update.Message.Chat.ID,
 			Title:  t.Title,
 			URL:    t.URL,
@@ -174,8 +172,8 @@ func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 }
 
 type deleteTarget struct {
-	DB   db.TargetsDB
-	conf config.Config
+	DB   TargetsDB
+	conf Config
 }
 
 func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bot *tgbotapi.BotAPI) (int, bool) {
@@ -223,7 +221,7 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			bot.Send(msg)
 			return 2, true
 		}
-		targetFromDB := db.Record{}
+		targetFromDB := Record{}
 		err = t.DB.DB.Where("ID = ?", target).First(&targetFromDB).Error
 		if err != nil || targetFromDB.ChatID != update.Message.Chat.ID {
 			message := "Цель не найдена"
@@ -231,7 +229,7 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			bot.Send(msg)
 			return 0, false
 		}
-		err = t.DB.DB.Where("ID = ?", target).Delete(db.Record{}).Error
+		err = t.DB.DB.Where("ID = ?", target).Delete(Record{}).Error
 		if err != nil {
 			message := fmt.Sprintf("Ошибка удаления цели, свяжитесь с администратором: %v", t.conf.Telegram.Admin)
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
@@ -250,7 +248,7 @@ func main() {
 	configPath := flag.String("config", "config.toml", "Path to the config file")
 
 	flag.Parse()
-	conf, err := config.ReadConfig(*configPath)
+	conf, err := ReadConfig(*configPath)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -261,7 +259,7 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	targets := db.TargetsDB{
+	targets := TargetsDB{
 		DB: connection,
 	}
 	targets.Migrate()

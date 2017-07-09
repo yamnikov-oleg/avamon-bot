@@ -58,6 +58,22 @@ func (b *Bot) formatStatusUpdate(target monitor.Target, status monitor.Status) s
 	return output
 }
 
+func (b *Bot) SendMessage(chatID int64, message string) {
+	msg := tgbotapi.NewMessage(chatID, message)
+	msg.ParseMode = tgbotapi.ModeHTML
+	b.TgBot.Send(msg)
+}
+
+func (b *Bot) SendDialogMessage(replyTo *tgbotapi.Message, message string) {
+	msg := tgbotapi.NewMessage(replyTo.Chat.ID, message)
+	msg.ReplyToMessageID = replyTo.MessageID
+	msg.ReplyMarkup = tgbotapi.ForceReply{
+		ForceReply: true,
+		Selective:  true,
+	}
+	b.TgBot.Send(msg)
+}
+
 func (b *Bot) monitorCreate() error {
 	mon := monitor.New(b.DB)
 	mon.Scheduler.Interval = time.Duration(b.Config.Monitor.Interval) * time.Second
@@ -88,10 +104,9 @@ func (b *Bot) monitorStart() {
 		for upd := range b.Monitor.Updates {
 			var rec Record
 			b.DB.DB.First(&rec, upd.Target.ID)
-			message := b.formatStatusUpdate(upd.Target, upd.Status)
-			msg := tgbotapi.NewMessage(rec.ChatID, message)
-			msg.ParseMode = tgbotapi.ModeHTML
-			b.TgBot.Send(msg)
+			b.SendMessage(
+				rec.ChatID,
+				b.formatStatusUpdate(upd.Target, upd.Status))
 		}
 	}()
 
@@ -121,39 +136,17 @@ type addNewTarget struct {
 
 func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bot *tgbotapi.BotAPI) (int, bool) {
 	if stepNumber == 1 {
-		message := "Введите заголовок цели"
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-		msg.ReplyToMessageID = update.Message.MessageID
-		msg.ReplyMarkup = tgbotapi.ForceReply{
-			ForceReply: true,
-			Selective:  true,
-		}
-		bot.Send(msg)
+		t.bot.SendDialogMessage(update.Message, "Введите заголовок цели")
 		return 2, true
 	}
 	if stepNumber == 2 {
 		t.Title = update.Message.Text
-		message := "Введите URL адрес цели"
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-		msg.ReplyToMessageID = update.Message.MessageID
-		msg.ReplyMarkup = tgbotapi.ForceReply{
-			ForceReply: true,
-			Selective:  true,
-		}
-		bot.Send(msg)
+		t.bot.SendDialogMessage(update.Message, "Введите URL адрес цели")
 		return 3, true
 	}
 	if stepNumber == 3 {
-		var message string
 		if _, err := url.Parse(update.Message.Text); err != nil {
-			message = "Ошибка ввода URL адреса, попробуйте еще раз"
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-			msg.ReplyToMessageID = update.Message.MessageID
-			msg.ReplyMarkup = tgbotapi.ForceReply{
-				ForceReply: true,
-				Selective:  true,
-			}
-			bot.Send(msg)
+			t.bot.SendDialogMessage(update.Message, "Ошибка ввода URL адреса, попробуйте еще раз")
 			return 3, true
 		}
 		t.URL = update.Message.Text
@@ -163,16 +156,14 @@ func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			URL:    t.URL,
 		})
 		if err != nil {
-			message = fmt.Sprintf(
-				"Ошибка добавления цели, свяжитесь с администратором: %v",
-				t.bot.Config.Telegram.Admin)
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-			bot.Send(msg)
+			t.bot.SendMessage(
+				update.Message.Chat.ID,
+				fmt.Sprintf(
+					"Ошибка добавления цели, свяжитесь с администратором: %v",
+					t.bot.Config.Telegram.Admin))
 			return 0, false
 		}
-		message = "Цель успешно добавлена"
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-		bot.Send(msg)
+		t.bot.SendMessage(update.Message.Chat.ID, "Цель успешно добавлена")
 		return 0, false
 	}
 	return 0, false
@@ -186,17 +177,15 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 	if stepNumber == 1 {
 		targs, err := t.bot.DB.GetCurrentTargets(update.Message.Chat.ID)
 		if err != nil {
-			message := fmt.Sprintf(
-				"Ошибка получения целей, свяжитесь с администратором: %v",
-				t.bot.Config.Telegram.Admin)
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-			bot.Send(msg)
+			t.bot.SendMessage(
+				update.Message.Chat.ID,
+				fmt.Sprintf(
+					"Ошибка получения целей, свяжитесь с администратором: %v",
+					t.bot.Config.Telegram.Admin))
 			return 0, false
 		}
 		if len(targs) == 0 {
-			message := "Целей не обнаружено!"
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-			bot.Send(msg)
+			t.bot.SendMessage(update.Message.Chat.ID, "Целей не обнаружено!")
 			return 0, false
 		}
 		var targetStrings []string
@@ -211,49 +200,31 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 					replaceHTML(target.URL)))
 		}
 		message := strings.Join(targetStrings, "\n")
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-		msg.ParseMode = tgbotapi.ModeHTML
-		msg.ReplyToMessageID = update.Message.MessageID
-		msg.ReplyMarkup = tgbotapi.ForceReply{
-			ForceReply: true,
-			Selective:  true,
-		}
-		bot.Send(msg)
+		t.bot.SendDialogMessage(update.Message, message)
 		return 2, true
 	}
 	if stepNumber == 2 {
 		target, err := strconv.Atoi(update.Message.Text)
 		if err != nil {
-			message := "Ошибка ввода идентификатора"
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-			msg.ReplyToMessageID = update.Message.MessageID
-			msg.ReplyMarkup = tgbotapi.ForceReply{
-				ForceReply: true,
-				Selective:  true,
-			}
-			bot.Send(msg)
+			t.bot.SendDialogMessage(update.Message, "Ошибка ввода идентификатора")
 			return 2, true
 		}
 		targetFromDB := Record{}
 		err = t.bot.DB.DB.Where("ID = ?", target).First(&targetFromDB).Error
 		if err != nil || targetFromDB.ChatID != update.Message.Chat.ID {
-			message := "Цель не найдена"
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-			bot.Send(msg)
+			t.bot.SendMessage(update.Message.Chat.ID, "Цель не найдена")
 			return 0, false
 		}
 		err = t.bot.DB.DB.Where("ID = ?", target).Delete(Record{}).Error
 		if err != nil {
-			message := fmt.Sprintf(
-				"Ошибка удаления цели, свяжитесь с администратором: %v",
-				t.bot.Config.Telegram.Admin)
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-			bot.Send(msg)
+			t.bot.SendMessage(
+				update.Message.Chat.ID,
+				fmt.Sprintf(
+					"Ошибка удаления цели, свяжитесь с администратором: %v",
+					t.bot.Config.Telegram.Admin))
 			return 0, false
 		}
-		message := "Цель успешно удалена!"
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-		bot.Send(msg)
+		t.bot.SendMessage(update.Message.Chat.ID, "Цель успешно удалена!")
 		return 0, false
 	}
 	return 0, false
@@ -324,10 +295,9 @@ func main() {
 			continue
 		}
 		if update.Message.Command() == "start" {
-			message := "Привет!\nЯ бот который умеет следить за доступностью сайтов.\n"
-
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-			bot.TgBot.Send(msg)
+			bot.SendMessage(
+				update.Message.Chat.ID,
+				"Привет!\nЯ бот который умеет следить за доступностью сайтов.\n")
 			continue
 		}
 		if update.Message.Command() == "add" {
@@ -344,26 +314,26 @@ func main() {
 		if update.Message.Command() == "targets" {
 			targs, err := bot.DB.GetCurrentTargets(update.Message.Chat.ID)
 			if err != nil {
-				message := fmt.Sprintf("Ошибка получения целей, свяжитесь с администратором: %v", bot.Config.Telegram.Admin)
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-				bot.TgBot.Send(msg)
+				bot.SendMessage(
+					update.Message.Chat.ID,
+					fmt.Sprintf(
+						"Ошибка получения целей, свяжитесь с администратором: %v",
+						bot.Config.Telegram.Admin))
 				continue
 			}
 			if len(targs) == 0 {
-				message := "Целей не обнаружено!"
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-				bot.TgBot.Send(msg)
+				bot.SendMessage(update.Message.Chat.ID, "Целей не обнаружено!")
 				continue
 			}
 			var targetStrings []string
 			for _, target := range targs {
 				status, ok, err := bot.Monitor.StatusStore.GetStatus(target.ToTarget())
 				if err != nil {
-					message := fmt.Sprintf(
-						"Ошибка статуса целей, свяжитесь с администратором: %v",
-						bot.Config.Telegram.Admin)
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-					bot.TgBot.Send(msg)
+					bot.SendMessage(
+						update.Message.Chat.ID,
+						fmt.Sprintf(
+							"Ошибка статуса целей, свяжитесь с администратором: %v",
+							bot.Config.Telegram.Admin))
 					continue
 				}
 				if !ok {
@@ -384,9 +354,7 @@ func main() {
 						status.Type, status.ResponseTime))
 			}
 			message := strings.Join(targetStrings, "\n")
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
-			msg.ParseMode = tgbotapi.ModeHTML
-			bot.TgBot.Send(msg)
+			bot.SendMessage(update.Message.Chat.ID, message)
 			continue
 		}
 		if update.Message.Command() == "delete" {

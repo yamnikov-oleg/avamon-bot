@@ -10,12 +10,16 @@ import (
 type Poller struct {
 	// Timeout of network request.
 	Timeout time.Duration
+	// How many times should poller repeat the request if all previous ones
+	// ended in timeout.
+	TimeoutRetries int
 }
 
 // NewPoller constructs a new Poller with default fields.
 func NewPoller() *Poller {
 	return &Poller{
-		Timeout: 3 * time.Second,
+		Timeout:        3 * time.Second,
+		TimeoutRetries: 2,
 	}
 }
 
@@ -23,6 +27,20 @@ func NewPoller() *Poller {
 // If there was an error during request, the returned Status structure will
 // contain information about the error.
 func (p *Poller) PollService(url string) Status {
+	retries := p.TimeoutRetries
+	for {
+		stat := p.pollServiceOnce(url)
+		if stat.Type != StatusTimeout {
+			return stat
+		}
+		if retries <= 0 {
+			return stat
+		}
+		retries--
+	}
+}
+
+func (p *Poller) pollServiceOnce(url string) Status {
 	client := &http.Client{}
 	client.Timeout = p.Timeout
 

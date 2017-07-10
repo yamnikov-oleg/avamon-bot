@@ -17,6 +17,13 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
 
+var (
+	// Green clover
+	okStatusEmoji = string([]rune{0x2618, 0xfe0f})
+	// Red alarm light
+	errorStatusEmoji = string([]rune{0x1f6a8})
+)
+
 func replaceHTML(input string) string {
 	input = strings.Replace(input, "<", "&lt;", -1)
 	input = strings.Replace(input, ">", "&gt;", -1)
@@ -35,11 +42,9 @@ func (b *Bot) formatStatusUpdate(target monitor.Target, status monitor.Status) s
 	var sign string
 
 	if status.Type == monitor.StatusOK {
-		// A line of green clovers emojis
-		sign = strings.Repeat(string([]rune{0x2618, 0xfe0f}), 10) + "\n"
+		sign = strings.Repeat(okStatusEmoji, 10) + "\n"
 	} else {
-		// A line of red alarm emojis
-		sign = strings.Repeat(string([]rune{0x1f6a8}), 10) + "\n"
+		sign = strings.Repeat(errorStatusEmoji, 10) + "\n"
 	}
 
 	output += sign
@@ -336,22 +341,30 @@ func main() {
 							bot.Config.Telegram.Admin))
 					continue
 				}
-				if !ok {
-					targetStrings = append(
-						targetStrings,
-						fmt.Sprintf(
-							"<b>Заголовок:</b> %v\n<b>URL:</b> %v\n",
-							replaceHTML(target.Title),
-							replaceHTML(target.URL)))
-					continue
+
+				var header string
+				header = fmt.Sprintf(
+					"<a href=\"%v\"><b>%v</b></a>",
+					replaceHTML(target.URL), replaceHTML(target.Title))
+
+				var statusText string
+				if ok {
+					var emoji string
+					if status.Type == monitor.StatusOK {
+						emoji = okStatusEmoji
+					} else {
+						emoji = errorStatusEmoji
+					}
+
+					statusText = fmt.Sprintf(
+						"%v %v (%v ms)",
+						emoji, status.Type, status.ResponseTime/time.Millisecond)
+				} else {
+					statusText = "N/A"
 				}
+
 				targetStrings = append(
-					targetStrings,
-					fmt.Sprintf(
-						"<b>Заголовок:</b> %v\n<b>URL:</b> %v\n<b>Статус:</b> %v\n<b>Время ответа:</b> %v\n",
-						replaceHTML(target.Title),
-						replaceHTML(target.URL),
-						status.Type, status.ResponseTime))
+					targetStrings, fmt.Sprintf("%v: %v", header, statusText))
 			}
 			message := strings.Join(targetStrings, "\n")
 			bot.SendMessage(update.Message.Chat.ID, message)

@@ -66,6 +66,7 @@ func (b *Bot) formatStatusUpdate(target monitor.Target, status monitor.Status) s
 func (b *Bot) SendMessage(chatID int64, message string) {
 	msg := tgbotapi.NewMessage(chatID, message)
 	msg.ParseMode = tgbotapi.ModeHTML
+	msg.DisableWebPagePreview = true
 	b.TgBot.Send(msg)
 }
 
@@ -344,7 +345,7 @@ func main() {
 
 				var header string
 				header = fmt.Sprintf(
-					"<a href=\"%v\"><b>%v</b></a>",
+					"<a href=\"%v\">%v</a>",
 					replaceHTML(target.URL), replaceHTML(target.Title))
 
 				var statusText string
@@ -358,7 +359,7 @@ func main() {
 
 					statusText = fmt.Sprintf(
 						"%v %v (%v ms)",
-						emoji, status.Type, status.ResponseTime/time.Millisecond)
+						emoji, status.Type, int64(status.ResponseTime/time.Millisecond))
 				} else {
 					statusText = "N/A"
 				}

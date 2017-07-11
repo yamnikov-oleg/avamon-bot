@@ -1,17 +1,14 @@
-package main
+package telegrambot
 
 import (
-	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-telegram-bot-api/telegram-bot-api"
-	"github.com/jinzhu/gorm"
 	"github.com/yamnikov-oleg/avamon-bot/monitor"
 
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
@@ -81,7 +78,7 @@ func (b *Bot) SendDialogMessage(replyTo *tgbotapi.Message, message string) {
 	b.TgBot.Send(msg)
 }
 
-func (b *Bot) monitorCreate() error {
+func (b *Bot) MonitorCreate() error {
 	mon := monitor.New(b.DB)
 	mon.Scheduler.Interval = time.Duration(b.Config.Monitor.Interval) * time.Second
 	mon.Scheduler.ParallelPolls = b.Config.Monitor.MaxParallel
@@ -106,7 +103,7 @@ func (b *Bot) monitorCreate() error {
 	return nil
 }
 
-func (b *Bot) monitorStart() {
+func (b *Bot) MonitorStart() {
 	go func() {
 		for upd := range b.Monitor.Updates {
 			var rec Record
@@ -352,48 +349,4 @@ func (b *Bot) Run() error {
 	}
 
 	return nil
-}
-
-func main() {
-	bot := Bot{}
-
-	configPath := flag.String("config", "config.toml", "Path to the config file")
-	flag.Parse()
-
-	var err error
-	bot.Config, err = ReadConfig(*configPath)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	connection, err := gorm.Open("sqlite3", bot.Config.Database.Name)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	bot.DB = &TargetsDB{
-		DB: connection,
-	}
-	bot.DB.Migrate()
-
-	bot.TgBot, err = tgbotapi.NewBotAPI(bot.Config.Telegram.APIKey)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	bot.TgBot.Debug = bot.Config.Telegram.Debug
-
-	err = bot.monitorCreate()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	bot.monitorStart()
-
-	err = bot.Run()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
 }

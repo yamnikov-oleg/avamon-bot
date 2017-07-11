@@ -262,15 +262,10 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 		return
 	}
 	if update.Message.Command() == "add" {
-		var ok bool
 		sess.Dialog = &addNewTarget{
 			bot: b,
 		}
-		sess.Stage, ok = sess.Dialog.ContinueDialog(1, *update, b.TgBot)
-		if !ok {
-			sess.Dialog = nil
-		}
-		return
+		b.StartDialog(update, sess.Dialog)
 	}
 	if update.Message.Command() == "targets" {
 		targs, err := b.DB.GetCurrentTargets(update.Message.Chat.ID)
@@ -327,16 +322,20 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 		return
 	}
 	if update.Message.Command() == "delete" {
-		var ok bool
 		sess.Dialog = &deleteTarget{
 			bot: b,
 		}
-		sess.Stage, ok = sess.Dialog.ContinueDialog(1, *update, b.TgBot)
-		if !ok {
-			sess.Dialog = nil
-		}
-		return
+		b.StartDialog(update, sess.Dialog)
 	}
+}
+
+func (b *Bot) StartDialog(update *tgbotapi.Update, dialog dialog) {
+	var ok bool
+	b.sessionMap[update.Message.Chat.ID].Stage, ok = dialog.ContinueDialog(1, *update, b.TgBot)
+	if !ok {
+		dialog = nil
+	}
+	return
 }
 
 func (b *Bot) Run() error {

@@ -3,6 +3,8 @@ interval = 10
 maxparallel = 3
 timeout = 7
 notifyfirstok = false
+timeoutretries=3
+expirationtime=30
 [database]
 name = "db.sqlite3"
 [telegram]

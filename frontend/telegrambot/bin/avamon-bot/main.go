@@ -18,6 +18,8 @@ func monitorCreate(b *telegrambot.Bot, config *Config) error {
 	mon.Scheduler.ParallelPolls = config.Monitor.MaxParallel
 	mon.Scheduler.Poller.Timeout = time.Duration(config.Monitor.Timeout) * time.Second
 	mon.NotifyFirstOK = config.Monitor.NotifyFirstOK
+	mon.Scheduler.Poller.TimeoutRetries = config.Monitor.TimeoutRetries
+	mon.ExpirationTime = time.Duration(config.Monitor.ExpirationTime) * time.Second
 
 	ropts := monitor.RedisOptions{
 		Host:     config.Redis.Host,

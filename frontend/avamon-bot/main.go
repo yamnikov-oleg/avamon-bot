@@ -339,6 +339,21 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 	}
 }
 
+func (b *Bot) Run() {
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 0
+
+	updates, err := b.TgBot.GetUpdatesChan(u)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	for update := range updates {
+		b.Dispatch(&update)
+	}
+}
+
 func main() {
 	bot := Bot{}
 
@@ -368,14 +383,6 @@ func main() {
 		os.Exit(1)
 	}
 	bot.TgBot.Debug = bot.Config.Telegram.Debug
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 0
-
-	updates, err := bot.TgBot.GetUpdatesChan(u)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
 
 	err = bot.monitorCreate()
 	if err != nil {
@@ -384,7 +391,5 @@ func main() {
 	}
 	bot.monitorStart()
 
-	for update := range updates {
-		bot.Dispatch(&update)
-	}
+	bot.Run()
 }

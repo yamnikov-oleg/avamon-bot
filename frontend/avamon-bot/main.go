@@ -339,19 +339,20 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 	}
 }
 
-func (b *Bot) Run() {
+func (b *Bot) Run() error {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 0
 
 	updates, err := b.TgBot.GetUpdatesChan(u)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	for update := range updates {
 		b.Dispatch(&update)
 	}
+
+	return nil
 }
 
 func main() {
@@ -391,5 +392,9 @@ func main() {
 	}
 	bot.monitorStart()
 
-	bot.Run()
+	err = bot.Run()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }

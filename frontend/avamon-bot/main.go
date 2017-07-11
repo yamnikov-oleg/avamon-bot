@@ -31,10 +31,11 @@ func replaceHTML(input string) string {
 }
 
 type Bot struct {
-	Config  *Config
-	DB      *TargetsDB
-	TgBot   *tgbotapi.BotAPI
-	Monitor *monitor.Monitor
+	Config     *Config
+	DB         *TargetsDB
+	TgBot      *tgbotapi.BotAPI
+	Monitor    *monitor.Monitor
+	sessionMap map[int64]*session
 }
 
 func (b *Bot) formatStatusUpdate(target monitor.Target, status monitor.Status) string {
@@ -236,6 +237,108 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 	return 0, false
 }
 
+func (b *Bot) Dispatch(update *tgbotapi.Update) {
+	if update.Message == nil {
+		return
+	}
+	if _, ok := b.sessionMap[update.Message.Chat.ID]; !ok {
+		b.sessionMap[update.Message.Chat.ID] = &session{}
+		b.sessionMap[update.Message.Chat.ID].Stage = 1
+		b.sessionMap[update.Message.Chat.ID].Dialog = nil
+	}
+	sess := b.sessionMap[update.Message.Chat.ID]
+	if sess.Dialog != nil {
+		var ok bool
+		sess.Stage, ok = sess.Dialog.ContinueDialog(sess.Stage, *update, b.TgBot)
+		if !ok {
+			sess.Dialog = nil
+		}
+		return
+	}
+	if update.Message.Command() == "start" {
+		b.SendMessage(
+			update.Message.Chat.ID,
+			"Привет!\nЯ бот который умеет следить за доступностью сайтов.\n")
+		return
+	}
+	if update.Message.Command() == "add" {
+		var ok bool
+		sess.Dialog = &addNewTarget{
+			bot: b,
+		}
+		sess.Stage, ok = sess.Dialog.ContinueDialog(1, *update, b.TgBot)
+		if !ok {
+			sess.Dialog = nil
+		}
+		return
+	}
+	if update.Message.Command() == "targets" {
+		targs, err := b.DB.GetCurrentTargets(update.Message.Chat.ID)
+		if err != nil {
+			b.SendMessage(
+				update.Message.Chat.ID,
+				fmt.Sprintf(
+					"Ошибка получения целей, свяжитесь с администратором: %v",
+					b.Config.Telegram.Admin))
+			return
+		}
+		if len(targs) == 0 {
+			b.SendMessage(update.Message.Chat.ID, "Целей не обнаружено!")
+			return
+		}
+		var targetStrings []string
+		for _, target := range targs {
+			status, ok, err := b.Monitor.StatusStore.GetStatus(target.ToTarget())
+			if err != nil {
+				b.SendMessage(
+					update.Message.Chat.ID,
+					fmt.Sprintf(
+						"Ошибка статуса целей, свяжитесь с администратором: %v",
+						b.Config.Telegram.Admin))
+				continue
+			}
+
+			var header string
+			header = fmt.Sprintf(
+				"<a href=\"%v\">%v</a>",
+				replaceHTML(target.URL), replaceHTML(target.Title))
+
+			var statusText string
+			if ok {
+				var emoji string
+				if status.Type == monitor.StatusOK {
+					emoji = okStatusEmoji
+				} else {
+					emoji = errorStatusEmoji
+				}
+
+				statusText = fmt.Sprintf(
+					"%v %v (%v ms)",
+					emoji, status.Type, int64(status.ResponseTime/time.Millisecond))
+			} else {
+				statusText = "N/A"
+			}
+
+			targetStrings = append(
+				targetStrings, fmt.Sprintf("%v: %v", header, statusText))
+		}
+		message := strings.Join(targetStrings, "\n")
+		b.SendMessage(update.Message.Chat.ID, message)
+		return
+	}
+	if update.Message.Command() == "delete" {
+		var ok bool
+		sess.Dialog = &deleteTarget{
+			bot: b,
+		}
+		sess.Stage, ok = sess.Dialog.ContinueDialog(1, *update, b.TgBot)
+		if !ok {
+			sess.Dialog = nil
+		}
+		return
+	}
+}
+
 func main() {
 	bot := Bot{}
 
@@ -281,106 +384,7 @@ func main() {
 	}
 	bot.monitorStart()
 
-	var sessionMap = map[int64]*session{}
 	for update := range updates {
-		if update.Message == nil {
-			continue
-		}
-		if _, ok := sessionMap[update.Message.Chat.ID]; !ok {
-			sessionMap[update.Message.Chat.ID] = &session{}
-			sessionMap[update.Message.Chat.ID].Stage = 1
-			sessionMap[update.Message.Chat.ID].Dialog = nil
-		}
-		sess := sessionMap[update.Message.Chat.ID]
-		if sess.Dialog != nil {
-			var ok bool
-			sess.Stage, ok = sess.Dialog.ContinueDialog(sess.Stage, update, bot.TgBot)
-			if !ok {
-				sess.Dialog = nil
-			}
-			continue
-		}
-		if update.Message.Command() == "start" {
-			bot.SendMessage(
-				update.Message.Chat.ID,
-				"Привет!\nЯ бот который умеет следить за доступностью сайтов.\n")
-			continue
-		}
-		if update.Message.Command() == "add" {
-			var ok bool
-			sess.Dialog = &addNewTarget{
-				bot: &bot,
-			}
-			sess.Stage, ok = sess.Dialog.ContinueDialog(1, update, bot.TgBot)
-			if !ok {
-				sess.Dialog = nil
-			}
-			continue
-		}
-		if update.Message.Command() == "targets" {
-			targs, err := bot.DB.GetCurrentTargets(update.Message.Chat.ID)
-			if err != nil {
-				bot.SendMessage(
-					update.Message.Chat.ID,
-					fmt.Sprintf(
-						"Ошибка получения целей, свяжитесь с администратором: %v",
-						bot.Config.Telegram.Admin))
-				continue
-			}
-			if len(targs) == 0 {
-				bot.SendMessage(update.Message.Chat.ID, "Целей не обнаружено!")
-				continue
-			}
-			var targetStrings []string
-			for _, target := range targs {
-				status, ok, err := bot.Monitor.StatusStore.GetStatus(target.ToTarget())
-				if err != nil {
-					bot.SendMessage(
-						update.Message.Chat.ID,
-						fmt.Sprintf(
-							"Ошибка статуса целей, свяжитесь с администратором: %v",
-							bot.Config.Telegram.Admin))
-					continue
-				}
-
-				var header string
-				header = fmt.Sprintf(
-					"<a href=\"%v\">%v</a>",
-					replaceHTML(target.URL), replaceHTML(target.Title))
-
-				var statusText string
-				if ok {
-					var emoji string
-					if status.Type == monitor.StatusOK {
-						emoji = okStatusEmoji
-					} else {
-						emoji = errorStatusEmoji
-					}
-
-					statusText = fmt.Sprintf(
-						"%v %v (%v ms)",
-						emoji, status.Type, int64(status.ResponseTime/time.Millisecond))
-				} else {
-					statusText = "N/A"
-				}
-
-				targetStrings = append(
-					targetStrings, fmt.Sprintf("%v: %v", header, statusText))
-			}
-			message := strings.Join(targetStrings, "\n")
-			bot.SendMessage(update.Message.Chat.ID, message)
-			continue
-		}
-		if update.Message.Command() == "delete" {
-			var ok bool
-			sess.Dialog = &deleteTarget{
-				bot: &bot,
-			}
-			sess.Stage, ok = sess.Dialog.ContinueDialog(1, update, bot.TgBot)
-			if !ok {
-				sess.Dialog = nil
-			}
-			continue
-		}
+		bot.Dispatch(&update)
 	}
 }

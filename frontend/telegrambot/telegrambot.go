@@ -28,11 +28,11 @@ func replaceHTML(input string) string {
 }
 
 type Bot struct {
-	Config     *Config
-	DB         *TargetsDB
-	TgBot      *tgbotapi.BotAPI
-	Monitor    *monitor.Monitor
-	sessionMap map[int64]*session
+	AdminNickname string
+	DB            *TargetsDB
+	TgBot         *tgbotapi.BotAPI
+	Monitor       *monitor.Monitor
+	sessionMap    map[int64]*session
 }
 
 func (b *Bot) formatStatusUpdate(target monitor.Target, status monitor.Status) string {
@@ -76,31 +76,6 @@ func (b *Bot) SendDialogMessage(replyTo *tgbotapi.Message, message string) {
 		Selective:  true,
 	}
 	b.TgBot.Send(msg)
-}
-
-func (b *Bot) MonitorCreate() error {
-	mon := monitor.New(b.DB)
-	mon.Scheduler.Interval = time.Duration(b.Config.Monitor.Interval) * time.Second
-	mon.Scheduler.ParallelPolls = b.Config.Monitor.MaxParallel
-	mon.Scheduler.Poller.Timeout = time.Duration(b.Config.Monitor.Timeout) * time.Second
-	mon.NotifyFirstOK = b.Config.Monitor.NotifyFirstOK
-
-	ropts := monitor.RedisOptions{
-		Host:     b.Config.Redis.Host,
-		Port:     b.Config.Redis.Port,
-		Password: b.Config.Redis.Pwd,
-		DB:       b.Config.Redis.DB,
-	}
-
-	rs := monitor.NewRedisStore(ropts)
-	if err := rs.Ping(); err != nil {
-		return err
-	}
-	mon.StatusStore = rs
-
-	b.Monitor = mon
-
-	return nil
 }
 
 func (b *Bot) MonitorStart() {
@@ -164,7 +139,7 @@ func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 				update.Message.Chat.ID,
 				fmt.Sprintf(
 					"Ошибка добавления цели, свяжитесь с администратором: %v",
-					t.bot.Config.Telegram.Admin))
+					t.bot.AdminNickname))
 			return 0, false
 		}
 		t.bot.SendMessage(update.Message.Chat.ID, "Цель успешно добавлена")
@@ -185,7 +160,7 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 				update.Message.Chat.ID,
 				fmt.Sprintf(
 					"Ошибка получения целей, свяжитесь с администратором: %v",
-					t.bot.Config.Telegram.Admin))
+					t.bot.AdminNickname))
 			return 0, false
 		}
 		if len(targs) == 0 {
@@ -225,7 +200,7 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 				update.Message.Chat.ID,
 				fmt.Sprintf(
 					"Ошибка удаления цели, свяжитесь с администратором: %v",
-					t.bot.Config.Telegram.Admin))
+					t.bot.AdminNickname))
 			return 0, false
 		}
 		t.bot.SendMessage(update.Message.Chat.ID, "Цель успешно удалена!")
@@ -270,7 +245,7 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 				update.Message.Chat.ID,
 				fmt.Sprintf(
 					"Ошибка получения целей, свяжитесь с администратором: %v",
-					b.Config.Telegram.Admin))
+					b.AdminNickname))
 			return
 		}
 		if len(targs) == 0 {
@@ -285,7 +260,7 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 					update.Message.Chat.ID,
 					fmt.Sprintf(
 						"Ошибка статуса целей, свяжитесь с администратором: %v",
-						b.Config.Telegram.Admin))
+						b.AdminNickname))
 				continue
 			}
 

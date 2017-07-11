@@ -326,9 +326,10 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 
 func (b *Bot) StartDialog(update *tgbotapi.Update, dialog dialog) {
 	var ok bool
+	b.sessionMap[update.Message.Chat.ID].Dialog = dialog
 	b.sessionMap[update.Message.Chat.ID].Stage, ok = dialog.ContinueDialog(1, *update, b.TgBot)
 	if !ok {
-		dialog = nil
+		b.sessionMap[update.Message.Chat.ID].Dialog = nil
 	}
 	return
 }

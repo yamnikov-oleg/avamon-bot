@@ -28,6 +28,23 @@ type TargetsDB struct {
 	DB *gorm.DB
 }
 
+func (t *TargetsDB) DeleteTarget(id int) error {
+	err := t.DB.Where("ID = ?", id).Delete(Record{}).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (t *TargetsDB) GetTarget(id int) (*Record, error) {
+	r := Record{}
+	err := t.DB.Where("ID = ?", id).First(&r).Error
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 func (t *TargetsDB) GetTargets() ([]monitor.Target, error) {
 	records := []Record{}
 	err := t.DB.Find(&records).Error

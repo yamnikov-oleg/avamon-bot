@@ -81,8 +81,11 @@ func (b *Bot) SendDialogMessage(replyTo *tgbotapi.Message, message string) {
 func (b *Bot) MonitorStart() {
 	go func() {
 		for upd := range b.Monitor.Updates {
-			var rec Record
-			b.DB.DB.First(&rec, upd.Target.ID)
+			rec, err := b.DB.GetTarget(int(upd.Target.ID))
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
 			b.SendMessage(
 				rec.ChatID,
 				b.formatStatusUpdate(upd.Target, upd.Status))
@@ -188,13 +191,12 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			t.bot.SendDialogMessage(update.Message, "Ошибка ввода идентификатора")
 			return 2, true
 		}
-		targetFromDB := Record{}
-		err = t.bot.DB.DB.Where("ID = ?", target).First(&targetFromDB).Error
+		targetFromDB, err := t.bot.DB.GetTarget(target)
 		if err != nil || targetFromDB.ChatID != update.Message.Chat.ID {
 			t.bot.SendMessage(update.Message.Chat.ID, "Цель не найдена")
 			return 0, false
 		}
-		err = t.bot.DB.DB.Where("ID = ?", target).Delete(Record{}).Error
+		err = t.bot.DB.DeleteTarget(target)
 		if err != nil {
 			t.bot.SendMessage(
 				update.Message.Chat.ID,

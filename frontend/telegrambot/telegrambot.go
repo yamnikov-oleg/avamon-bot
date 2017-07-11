@@ -259,10 +259,9 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 		return
 	}
 	if update.Message.Command() == "add" {
-		sess.Dialog = &addNewTarget{
+		b.StartDialog(update, &addNewTarget{
 			bot: b,
-		}
-		b.StartDialog(update, sess.Dialog)
+		})
 	}
 	if update.Message.Command() == "targets" {
 		targs, err := b.DB.GetCurrentTargets(update.Message.Chat.ID)
@@ -319,10 +318,9 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 		return
 	}
 	if update.Message.Command() == "delete" {
-		sess.Dialog = &deleteTarget{
+		b.StartDialog(update, &deleteTarget{
 			bot: b,
-		}
-		b.StartDialog(update, sess.Dialog)
+		})
 	}
 }
 

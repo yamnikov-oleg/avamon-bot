@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-telegram-bot-api/telegram-bot-api"
@@ -49,6 +50,21 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+
+	if config.Monitor.TimeoutRetries*config.Monitor.Timeout >= config.Monitor.ExpirationTime {
+		messageLines := []string{
+			"Warning! Maximum number of timeout retries (%v by %v seconds) takes greater or equal time",
+			"to the status expiration time (%v seconds). This may lead to multiple timeout notifications.",
+			"Increase expiration time or decrease timeout to fix this issue.",
+			"\n",
+		}
+		fmt.Printf(
+			strings.Join(messageLines, " "),
+			config.Monitor.TimeoutRetries,
+			config.Monitor.Timeout,
+			config.Monitor.ExpirationTime,
+		)
 	}
 
 	connection, err := gorm.Open("sqlite3", config.Database.Name)

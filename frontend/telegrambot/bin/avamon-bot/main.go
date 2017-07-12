@@ -52,9 +52,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	if config.Monitor.TimeoutRetries*config.Monitor.Timeout >= config.Monitor.ExpirationTime {
+	if (config.Monitor.TimeoutRetries+1)*config.Monitor.Timeout >= config.Monitor.ExpirationTime {
 		messageLines := []string{
-			"Warning! Maximum number of timeout retries (%v by %v seconds) takes greater or equal time",
+			"Warning! Maximum number of timeouted poll attempts (%v+1 by %v seconds) takes greater or equal time",
 			"to the status expiration time (%v seconds). This may lead to multiple timeout notifications.",
 			"Increase expiration time or decrease timeout to fix this issue.",
 			"\n",

@@ -312,6 +312,8 @@ func (b *Bot) StartDialog(update *tgbotapi.Update, dialog dialog) {
 }
 
 func (b *Bot) Run() error {
+	b.sessionMap = map[int64]*session{}
+
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 0
 

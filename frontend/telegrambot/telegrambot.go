@@ -48,13 +48,13 @@ func (b *Bot) formatStatusUpdate(target monitor.Target, status monitor.Status) s
 	output += sign
 	output += fmt.Sprintf("<b>%v:</b> <b>%v</b>\n\n", replaceHTML(target.Title), status.Type)
 	output += fmt.Sprintf("<b>URL:</b> %v\n", replaceHTML(target.URL))
-	output += fmt.Sprintf("<b>Время ответа:</b> %v\n", status.ResponseTime)
+	output += fmt.Sprintf("<b>Response time:</b> %v\n", status.ResponseTime)
 
 	if status.Type != monitor.StatusOK {
-		output += fmt.Sprintf("<b>Сообщение:</b> %v\n", replaceHTML(status.Err.Error()))
+		output += fmt.Sprintf("<b>Error msg:</b> %v\n", replaceHTML(status.Err.Error()))
 	}
 	if status.Type == monitor.StatusHTTPError {
-		output += fmt.Sprintf("<b>Статус HTTP:</b> %v %v\n", status.HTTPStatusCode, http.StatusText(status.HTTPStatusCode))
+		output += fmt.Sprintf("<b>HTTP Status:</b> %v %v\n", status.HTTPStatusCode, http.StatusText(status.HTTPStatusCode))
 	}
 	output += sign
 
@@ -118,17 +118,17 @@ type addNewTarget struct {
 
 func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bot *tgbotapi.BotAPI) (int, bool) {
 	if stepNumber == 1 {
-		t.bot.SendDialogMessage(update.Message, "Введите заголовок цели")
+		t.bot.SendDialogMessage(update.Message, "Enter the title for the target")
 		return 2, true
 	}
 	if stepNumber == 2 {
 		t.Title = update.Message.Text
-		t.bot.SendDialogMessage(update.Message, "Введите URL адрес цели")
+		t.bot.SendDialogMessage(update.Message, "Enter the url for the target")
 		return 3, true
 	}
 	if stepNumber == 3 {
 		if _, err := url.Parse(update.Message.Text); err != nil {
-			t.bot.SendDialogMessage(update.Message, "Ошибка ввода URL адреса, попробуйте еще раз")
+			t.bot.SendDialogMessage(update.Message, "Error while parsing url, please try again")
 			return 3, true
 		}
 		t.URL = update.Message.Text
@@ -141,11 +141,11 @@ func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			t.bot.SendMessage(
 				update.Message.Chat.ID,
 				fmt.Sprintf(
-					"Ошибка добавления цели, свяжитесь с администратором: %v",
+					"Error while adding the target, please contact the administrator: %v",
 					t.bot.AdminNickname))
 			return 0, false
 		}
-		t.bot.SendMessage(update.Message.Chat.ID, "Цель успешно добавлена")
+		t.bot.SendMessage(update.Message.Chat.ID, "Target was successfully added")
 		return 0, false
 	}
 	return 0, false
@@ -162,21 +162,21 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			t.bot.SendMessage(
 				update.Message.Chat.ID,
 				fmt.Sprintf(
-					"Ошибка получения целей, свяжитесь с администратором: %v",
+					"Error while retrieving the targets, please contact the administrator: %v",
 					t.bot.AdminNickname))
 			return 0, false
 		}
 		if len(targs) == 0 {
-			t.bot.SendMessage(update.Message.Chat.ID, "Целей не обнаружено!")
+			t.bot.SendMessage(update.Message.Chat.ID, "You have no targets added! Use /add to add one")
 			return 0, false
 		}
 		var targetStrings []string
-		targetStrings = append(targetStrings, "Введите <b>идентификатор</b> цели для удаления\n")
+		targetStrings = append(targetStrings, "Enter the <b>ID</b> of a target to delete it\n")
 		for _, target := range targs {
 			targetStrings = append(
 				targetStrings,
 				fmt.Sprintf(
-					"<b>Идентификатор:</b> %v\n<b>Заголовок:</b> %v\n<b>URL:</b> %v\n",
+					"<b>ID:</b> %v\n<b>Title:</b> %v\n<b>URL:</b> %v\n",
 					target.ID,
 					replaceHTML(target.Title),
 					replaceHTML(target.URL)))
@@ -188,12 +188,12 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 	if stepNumber == 2 {
 		target, err := strconv.Atoi(update.Message.Text)
 		if err != nil {
-			t.bot.SendDialogMessage(update.Message, "Ошибка ввода идентификатора")
+			t.bot.SendDialogMessage(update.Message, "Invalid ID, please try again")
 			return 2, true
 		}
 		targetFromDB, err := t.bot.DB.GetTarget(target)
 		if err != nil || targetFromDB.ChatID != update.Message.Chat.ID {
-			t.bot.SendMessage(update.Message.Chat.ID, "Цель не найдена")
+			t.bot.SendMessage(update.Message.Chat.ID, "No target with such ID found")
 			return 0, false
 		}
 		err = t.bot.DB.DeleteTarget(target)
@@ -201,11 +201,11 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			t.bot.SendMessage(
 				update.Message.Chat.ID,
 				fmt.Sprintf(
-					"Ошибка удаления цели, свяжитесь с администратором: %v",
+					"Error while deleting the target, please contact the administrator: %v",
 					t.bot.AdminNickname))
 			return 0, false
 		}
-		t.bot.SendMessage(update.Message.Chat.ID, "Цель успешно удалена!")
+		t.bot.SendMessage(update.Message.Chat.ID, "Target was successfully deleted!")
 		return 0, false
 	}
 	return 0, false
@@ -232,7 +232,7 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 	if update.Message.Command() == "start" {
 		b.SendMessage(
 			update.Message.Chat.ID,
-			"Привет!\nЯ бот который умеет следить за доступностью сайтов.\n")
+			"Hi!\nI'm a bot which can monitor sites' availability and notify you when a site goes down or up again.\n")
 		return
 	}
 	if update.Message.Command() == "add" {
@@ -246,12 +246,12 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 			b.SendMessage(
 				update.Message.Chat.ID,
 				fmt.Sprintf(
-					"Ошибка получения целей, свяжитесь с администратором: %v",
+					"Error while retrieving the targets, please contact the administrator: %v",
 					b.AdminNickname))
 			return
 		}
 		if len(targs) == 0 {
-			b.SendMessage(update.Message.Chat.ID, "Целей не обнаружено!")
+			b.SendMessage(update.Message.Chat.ID, "No targets! Use /add to add one.")
 			return
 		}
 		var targetStrings []string
@@ -261,7 +261,7 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 				b.SendMessage(
 					update.Message.Chat.ID,
 					fmt.Sprintf(
-						"Ошибка статуса целей, свяжитесь с администратором: %v",
+						"Error while retrieving the target's status, please contact the administrator: %v",
 						b.AdminNickname))
 				continue
 			}

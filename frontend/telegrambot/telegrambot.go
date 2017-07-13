@@ -75,6 +75,8 @@ func (b *Bot) SendDialogMessage(replyTo *tgbotapi.Message, message string) {
 		ForceReply: true,
 		Selective:  true,
 	}
+	msg.ParseMode = tgbotapi.ModeHTML
+	msg.DisableWebPagePreview = true
 	b.TgBot.Send(msg)
 }
 

@@ -120,7 +120,9 @@ type addNewTarget struct {
 
 func (t *addNewTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bot *tgbotapi.BotAPI) (int, bool) {
 	if stepNumber == 1 {
-		t.bot.SendDialogMessage(update.Message, "Enter the title for the target")
+		t.bot.SendDialogMessage(
+			update.Message,
+			"Enter the title for the target. Send /cancel if you've changed your mind.")
 		return 2, true
 	}
 	if stepNumber == 2 {
@@ -173,7 +175,7 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			return 0, false
 		}
 		var targetStrings []string
-		targetStrings = append(targetStrings, "Enter the <b>ID</b> of a target to delete it\n")
+		targetStrings = append(targetStrings, "Enter the <b>ID</b> of a target to delete it. Send /cancel if you've changed your mind.\n")
 		for _, target := range targs {
 			targetStrings = append(
 				targetStrings,
@@ -300,6 +302,16 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 		b.StartDialog(update, &deleteTarget{
 			bot: b,
 		})
+	}
+	if update.Message.Command() == "cancel" {
+		if sess.Dialog != nil {
+			sess.Dialog = nil
+			sess.Stage = 0
+			b.SendMessage(update.Message.Chat.ID, "Action has been canceled")
+		} else {
+			b.SendMessage(update.Message.Chat.ID, "No action in process")
+		}
+		return
 	}
 }
 

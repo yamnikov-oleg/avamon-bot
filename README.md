@@ -4,10 +4,11 @@ Small telegram bot monitoring websites' availability.
 
 ## Usage
 
-This bot is not currently hosted for public use, unfortunately. If will have to
+This bot is not currently hosted for public use, unfortunately. You will have to
 host it yourself.
 
-This bot is suitable for adding to groups. All the group members will be able to add, list and delete targets.
+It is suitable for adding to groups. All the group members will be able to add,
+list and delete targets.
 
 ### Adding a target
 

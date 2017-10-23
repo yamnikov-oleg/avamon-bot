@@ -227,6 +227,16 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 		b.sessionMap[update.Message.Chat.ID].Dialog = nil
 	}
 	sess := b.sessionMap[update.Message.Chat.ID]
+	if update.Message.Command() == "cancel" {
+		if sess.Dialog != nil {
+			sess.Dialog = nil
+			sess.Stage = 0
+			b.SendMessage(update.Message.Chat.ID, "Action has been canceled")
+		} else {
+			b.SendMessage(update.Message.Chat.ID, "No action in process")
+		}
+		return
+	}
 	if sess.Dialog != nil {
 		var ok bool
 		sess.Stage, ok = sess.Dialog.ContinueDialog(sess.Stage, *update, b.TgBot)
@@ -304,16 +314,6 @@ func (b *Bot) Dispatch(update *tgbotapi.Update) {
 		b.StartDialog(update, &deleteTarget{
 			bot: b,
 		})
-	}
-	if update.Message.Command() == "cancel" {
-		if sess.Dialog != nil {
-			sess.Dialog = nil
-			sess.Stage = 0
-			b.SendMessage(update.Message.Chat.ID, "Action has been canceled")
-		} else {
-			b.SendMessage(update.Message.Chat.ID, "No action in process")
-		}
-		return
 	}
 }
 

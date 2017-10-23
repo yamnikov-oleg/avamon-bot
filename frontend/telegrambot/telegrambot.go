@@ -180,10 +180,12 @@ func (t *deleteTarget) ContinueDialog(stepNumber int, update tgbotapi.Update, bo
 			targetStrings = append(
 				targetStrings,
 				fmt.Sprintf(
-					"<b>ID:</b> %v\n<b>Title:</b> %v\n<b>URL:</b> %v\n",
+					"<b>%v</b>: <a href=\"%v\">%v</a>",
 					target.ID,
+					replaceHTML(target.URL),
 					replaceHTML(target.Title),
-					replaceHTML(target.URL)))
+				),
+			)
 		}
 		message := strings.Join(targetStrings, "\n")
 		t.bot.SendDialogMessage(update.Message, message)
